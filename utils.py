@@ -302,16 +302,16 @@ def get_data_loaders(dataset, dataset_root=None, augment=False, batch_size=64, n
     if dataset in ['C10', 'C100']:
       print('Using CIFAR dataset root in scratch...')
       if os.path.isdir('/home/s1580274/scratch/data/'):
-        dataset_root = '/home/s1580274/scratch/data/cifar'
+        dataset_root = '/home/s1580274/scratch/data/'
         print('On Eddie, using the eddie root location %s...' % dataset_root)
       elif os.path.isdir('/home/visionlab/andy/boilerplate'):
-        dataset_root = '/home/visionlab/andy/boilerplate/cifar'
+        dataset_root = '/home/visionlab/andy/boilerplate/'
         print('On Nessie, using Nessie root location %s...' % dataset_root)
-    elif os.path.isdir('/home/s1580274/scratch/data/ImageNet'):
-      dataset_root = '/home/s1580274/scratch/data/ImageNet'
+    elif os.path.isdir('/home/s1580274/scratch/data/'):
+      dataset_root = '/home/s1580274/scratch/data/'
       print('On Eddie, using the eddie root location %s...' % dataset_root)
-    elif os.path.isdir('/jmain01/home/JAD003/sxr01/axb64-sxr01/data/ImageNet'):
-      dataset_root = '/jmain01/home/JAD003/sxr01/axb64-sxr01/data/ImageNet'
+    elif os.path.isdir('/jmain01/home/JAD003/sxr01/axb64-sxr01/data/'):
+      dataset_root = '/jmain01/home/JAD003/sxr01/axb64-sxr01/data/'
       print('On Jade, using the Jade root location %s...' % dataset_root)
     elif os.path.isdir('/home/abrock/imagenet/train_imgs'):
       dataset_root = '/home/abrock/imagenet/train_imgs'
@@ -321,7 +321,7 @@ def get_data_loaders(dataset, dataset_root=None, augment=False, batch_size=64, n
     
   # Append /FILENAME.hdf5 to root if using hdf5
   dataset_root += '%s' % root_dict[dataset]
-  print('Using dataset root location %s...' % dataset_root)
+  print('Using dataset root location %s' % dataset_root)
     
     
   which_dataset = dset_dict[dataset]

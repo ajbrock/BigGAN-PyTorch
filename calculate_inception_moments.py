@@ -16,7 +16,8 @@ def prepare_parser():
   parser = ArgumentParser(description=usage)
   parser.add_argument(
     '--dataset', type=str, default='I128',
-    help='Which Dataset to train on, out of I128, C10, C100, MN10, MN40, STL10 (default: %(default)s)') 
+    help='Which Dataset to train on, out of I128, I256, C10, C100...'
+         'Append _hdf5 to use the hdf5 version of the dataset. (default: %(default)s)') 
   parser.add_argument(
     '--batch_size', type=int, default=64,
     help='Default overall batchsize (default: %(default)s)')
@@ -26,9 +27,6 @@ def prepare_parser():
   parser.add_argument(
     '--augment', action='store_true', default=False,
     help='Augment with random crops and flips (default: %(default)s)')
-  parser.add_argument(
-    '--hdf5', action='store_true', default=False,
-    help='Use the HDF5 version of the dataset (default: %(default)s)') 
   parser.add_argument(
     '--num_workers', type=int, default=8,
     help='Number of dataloader workers (default: %(default)s)')
