@@ -242,7 +242,8 @@ def run(config):
                          G_ema if config['ema'] else None)
       state_dict['save_num'] = (state_dict['save_num'] + 1 ) % config['num_save_copies']
       # For now, every time we save, also save sample sheets
-      utils.sample_sheet(G, classes_per_sheet=utils.classes_per_sheet_dict[config['dataset']], 
+      utils.sample_sheet(G_ema if config['ema'] and config['use_ema'] else G,
+                         classes_per_sheet=utils.classes_per_sheet_dict[config['dataset']], 
                          num_classes=utils.nclass_dict[config['dataset']], 
                          samples_per_class=10, parallel=config['parallel'],
                          samples_root=config['samples_root'], 
@@ -287,7 +288,10 @@ def run(config):
     for i, (x, y) in enumerate(pbar):
       # Increment the iteration counter
       state_dict['itr'] += 1
-      
+      G.train()
+      D.train()
+      if config['ema']:
+        G_ema.train()
       metrics = train(x.cuda(), y.cuda())
       train_log.log(itr=int(state_dict['itr']), **metrics) 
       
@@ -302,8 +306,10 @@ def run(config):
         if config['G_eval_mode']:
           print('Switchin G to eval mode...')
           G.eval()
+          if config['ema']:
+            G_ema.eval()
         save_and_sample()
-      
+   
       # Test every specified interval
       if not (state_dict['itr'] % config['test_every']):
         if config['G_eval_mode']:
