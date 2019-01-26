@@ -107,6 +107,13 @@ class Generator(nn.Module):
                           num_svs=num_G_SVs, num_itrs=num_G_SV_itrs)
       self.which_embedding = functools.partial(layers.SNEmbedding,
                               num_svs=num_G_SVs, num_itrs=num_G_SV_itrs)
+    # PyTorch inbuilt spectral norm? Use lambdas here since functools.partial doesn't quite cut it                  
+    elif self.G_param == 'PTSN':
+      self.which_conv = lambda *args, **kwargs: nn.utils.spectral_norm(functools.partial(nn.Conv2d, kernel_size=3, padding=1)(*args, **kwargs))
+      self.which_linear = lambda *args, **kwargs: nn.utils.spectral_norm(nn.Linear(*args, **kwargs))
+      self.which_embedding = lambda *args, **kwargs: nn.utils.spectral_norm(nn.Embedding(*args, **kwargs))
+      # self.which_linear = lambda in_ch, out_ch: nn.utils.spectral_norm(nn.Linear(in_ch, out_ch))
+      # self.which_embedding = lambda num_embeddings, embedding_size: nn.utils.spectral_norm(nn.Embedding(num_embeddings, embedding_size))
     else:
       self.which_conv = functools.partial(nn.Conv2d, kernel_size=3, padding=1)
       self.which_linear = nn.Linear
@@ -173,7 +180,7 @@ class Generator(nn.Module):
     # print('Skipping initialization for now...')
     self.param_count = 0
     for module in self.modules():
-      if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+      if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear) or isinstance(module, nn.Embedding):
         # pass # Uncomment this to skip init step on convs and linears
         if self.init == 'ortho':
           init.orthogonal_(module.weight)       
@@ -183,10 +190,6 @@ class Generator(nn.Module):
           init.xavier_uniform_(module.weight)
         else:
           print('Init style not recognized...')
-        self.param_count += sum([p.data.nelement() for p in module.parameters()])
-      # Regardless of init style, init embeding with N(0, 0.02)  
-      elif isinstance(module, nn.Embedding):
-        init.normal_(module.weight, 0, 0.02)
         self.param_count += sum([p.data.nelement() for p in module.parameters()])
       #else:
         #print(type(module))
@@ -270,12 +273,14 @@ class Discriminator(nn.Module):
     self.activation = D_activation
     # Initialization style
     self.init = D_init
+    # Parameterization style
+    self.D_param = D_param
     # Architecture
     self.arch = D_arch(self.ch, self.attention)[resolution]
     
     # Which convs, batchnorms, and linear layers to use
     # No option to turn off SN in D right now
-    if D_param == 'SN':
+    if self.D_param == 'SN':
       self.which_conv = functools.partial(layers.SNConv2d,
                           kernel_size=3, padding=1,
                           num_svs=num_D_SVs, num_itrs=num_D_SV_itrs)
@@ -284,7 +289,11 @@ class Discriminator(nn.Module):
       self.which_embedding = functools.partial(layers.SNEmbedding,
                               num_svs=num_D_SVs, num_itrs=num_D_SV_itrs)
 
-    
+    # PyTorch inbuilt spectral norm? Use lambdas here since functools.partial doesn't quite cut it                  
+    elif self.D_param == 'PTSN':
+      self.which_conv = lambda *args, **kwargs: nn.utils.spectral_norm(functools.partial(nn.Conv2d, kernel_size=3, padding=1)(*args, **kwargs))
+      self.which_linear = lambda *args, **kwargs: nn.utils.spectral_norm(nn.Linear(*args, **kwargs))
+      self.which_embedding = lambda *args, **kwargs: nn.utils.spectral_norm(nn.Embedding(*args, **kwargs))
     # Prepare model
     # self.blocks is a doubly-nested list of modules, the outer loop intended
     # to be over blocks at a given resolution (resblocks and/or self-attention)
@@ -325,7 +334,7 @@ class Discriminator(nn.Module):
     # print('Skipping initialization for now...')
     self.param_count = 0
     for module in self.modules():
-      if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+      if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear) or isinstance(module, nn.Embedding):
         # pass # Uncomment this to skip init step on convs and linears
         if self.init == 'ortho':
           init.orthogonal_(module.weight)          
@@ -335,10 +344,6 @@ class Discriminator(nn.Module):
           init.xavier_uniform_(module.weight)
         else:
           print('Init style not recognized...')
-        self.param_count += sum([p.data.nelement() for p in module.parameters()])
-      # Regardless of init style, init embeding with N(0, 0.02)
-      elif isinstance(module, nn.Embedding):
-        init.normal_(module.weight, 0, 0.02)
         self.param_count += sum([p.data.nelement() for p in module.parameters()])
       #else:
         #print(type(module))
