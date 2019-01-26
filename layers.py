@@ -40,6 +40,7 @@ def power_iteration(W, u_, update=True, eps=1e-12):
         u_[i][:] = u
     # Compute this singular value and add it to the list
     svs += [torch.squeeze(torch.matmul(torch.matmul(v, W.t()), u.t()))]
+    #svs += [torch.sum(F.linear(u, W.transpose(0, 1)) * v)]
   return svs, us, vs
 
 # Convenience passthrough function
@@ -262,7 +263,7 @@ class bn(nn.Module):
       # return x * gain + bias
       # if self.training:
       #print('Running this batchnorm code!')
-      return F.batch_norm(x, self.stored_mean, self.stored_var, self.gain, self.bias, self.training, 0.9, self.eps)
+      return F.batch_norm(x, self.stored_mean, self.stored_var, self.gain, self.bias, self.training, 0.1, self.eps)
    
 # Generator blocks
 # Note that this class assumes the kernel size and padding (and any other
@@ -324,7 +325,7 @@ class DBlock(nn.Module):
     # Conv layers
     self.conv1 = self.which_conv(self.in_channels, self.out_channels)
     self.conv2 = self.which_conv(self.out_channels, self.out_channels)
-    self.learnable_sc = (in_channels != out_channels) or downsample
+    self.learnable_sc = True if (in_channels != out_channels) or downsample else False
     if self.learnable_sc:
       self.conv_sc = self.which_conv(in_channels, out_channels, 
                                      kernel_size=1, padding=0)
