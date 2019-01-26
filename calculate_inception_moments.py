@@ -66,7 +66,7 @@ def run(config):
   print('Calculating means and covariances...')
   mu, sigma = np.mean(pool, axis=0), np.cov(pool, rowvar=False)
   print('Saving calculated means and covariances to disk...')
-  np.savez(config['dataset']+'_inception_moments.npz', **{'mu' : mu, 'sigma' : sigma})
+  np.savez(config['dataset'].strip('_hdf5')+'_inception_moments.npz', **{'mu' : mu, 'sigma' : sigma})
 
 def main():
   # parse command line    
