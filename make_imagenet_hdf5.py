@@ -18,13 +18,14 @@ from torch.utils.data import DataLoader
 import utils
 
 
-batch_size = 1000
+batch_size = 256
 
 # Get dataset
-kwargs = {'num_workers': 20, 'pin_memory': False}
-image_size = 128
+kwargs = {'num_workers': 16, 'pin_memory': False, 'drop_last': False}
+image_size = 64
 train_loader = utils.get_data_loaders(dataset='I%d' % image_size,batch_size=batch_size,
-                                      shuffle=False, **kwargs)[0]
+                                      shuffle=False,
+                                      dataset_root = '/home/s1580274/scratch/data/', **kwargs)[0]
    
 
 
@@ -42,8 +43,8 @@ compression= None#'lzf' No compression
 
 print('Starting to load I%i into an HDF5 file with chunk size %i and compression %s...' % (image_size, chunk_size, compression))
 
-# root = '/home/s1580274/scratch/data/'
-root = '/home/abrock/imagenet/'
+root = '/home/s1580274/scratch/data/'
+# root = '/home/abrock/imagenet/'
 
 for i,(x,y) in enumerate(tqdm(train_loader)):
   x = (255 * ((x + 1) / 2.0)).byte().numpy()

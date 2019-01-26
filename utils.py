@@ -231,19 +231,27 @@ def prepare_parser():
 
 
 # Convenience dicts
-dset_dict = {'I128': dset.ImageFolder, 'I256': dset.ImageFolder,
-             'I128_hdf5': dset.ILSVRC_HDF5, 'I256_hdf5': dset.ILSVRC_HDF5,
+dset_dict = {'I32': dset.ImageFolder, 'I64': dset.ImageFolder, 'I128': dset.ImageFolder, 'I256': dset.ImageFolder,
+             'I32_hdf5': dset.ILSVRC_HDF5, 'I64_hdf5': dset.ILSVRC_HDF5, 'I128_hdf5': dset.ILSVRC_HDF5, 'I256_hdf5': dset.ILSVRC_HDF5,
              'C10': dset.CIFAR10, 'C100': dset.CIFAR100}
-imsize_dict = {'I128': 128, 'I128_hdf5': 128, 
+imsize_dict = {'I32': 32, 'I32_hdf5': 32, 
+               'I64': 64, 'I64_hdf5': 64, 
+               'I128': 128, 'I128_hdf5': 128, 
                'I256': 256, 'I256_hdf5': 256,
                'C10': 32, 'C100': 32}
-root_dict = {'I128': 'ImageNet', 'I128_hdf5': 'ILSVRC128.hdf5',
+root_dict = {'I32': 'ImageNet', 'I32_hdf5': 'ILSVRC128.hdf5',
+             'I64': 'ImageNet', 'I64_hdf5': 'ILSVRC128.hdf5',
+             'I128': 'ImageNet', 'I128_hdf5': 'ILSVRC128.hdf5',
              'I256': 'ImageNet', 'I256_hdf5': 'ILSVRC256.hdf5',
              'C10': 'cifar', 'C100': 'cifar'}
-nclass_dict = {'I128': 1000, 'I128_hdf5': 1000, 
+nclass_dict = {'I32': 1000, 'I32_hdf5': 1000,
+               'I64': 1000, 'I64_hdf5': 1000, 
+               'I128': 1000, 'I128_hdf5': 1000,  
                'I256': 1000, 'I256_hdf5': 1000,
                'C10': 10, 'C100': 100}
-classes_per_sheet_dict = {'I128': 20, 'I128_hdf5': 20,
+classes_per_sheet_dict = {'I32': 50, 'I32_hdf5': 50,
+                          'I64': 50, 'I64_hdf5': 50,
+                          'I128': 20, 'I128_hdf5': 20,
                           'I256': 20, 'I256_hdf5': 20,
                           'C10': 10, 'C100': 100}
 activation_dict = {'inplace_relu': nn.ReLU(inplace=True),
@@ -295,7 +303,7 @@ class RandomCropLongEdge(object):
 # Convenience function to centralize all data loaders
 def get_data_loaders(dataset, dataset_root=None, augment=False, batch_size=64, num_workers=8,
                      shuffle=True, load_in_mem=False, hdf5=False,
-                     pin_memory=True, **kwargs):
+                     pin_memory=True, drop_last=True, **kwargs):
                      
   # Test which cluster we're on and select a root appropriately
   if dataset_root is None:
@@ -359,7 +367,7 @@ def get_data_loaders(dataset, dataset_root=None, augment=False, batch_size=64, n
   # using validation / test splits.
   loaders = []
   loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory,
-                   'drop_last': True} # By default drop last incomplete batch
+                   'drop_last': drop_last} # By default drop last incomplete batch
   train_loader = DataLoader(train_set, batch_size=batch_size,
                             shuffle=shuffle, **loader_kwargs)
   loaders.append(train_loader)                           
@@ -448,11 +456,13 @@ def save_weights(G, D, state_dict, weights_root, experiment_name, G_ema=None):
 # load weights
 def load_weights(G, D, state_dict, weights_root, experiment_name, G_ema=None):
   root = '/'.join([weights_root, experiment_name])
-  print('Loading weights from %s...' % root )  
-  G.load_state_dict(torch.load('%s_G.pth' % root))
-  G.optim.load_state_dict(torch.load('%s_G_optim.pth' % root))
-  D.load_state_dict(torch.load('%s_D.pth' % root))
-  D.optim.load_state_dict(torch.load('%s_D_optim.pth' % root))
+  print('Loading weights from %s...' % root )
+  if G is not None:
+    G.load_state_dict(torch.load('%s_G.pth' % root))
+    G.optim.load_state_dict(torch.load('%s_G_optim.pth' % root))
+  if D is not None:
+    D.load_state_dict(torch.load('%s_D.pth' % root))
+    D.optim.load_state_dict(torch.load('%s_D_optim.pth' % root))
   # Load state dict
   for item in state_dict:
     state_dict[item] = torch.load('%s_state_dict.pth' % root)[item]
