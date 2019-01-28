@@ -105,13 +105,15 @@ class Generator(nn.Module):
                           num_svs=num_G_SVs, num_itrs=num_G_SV_itrs)
       self.which_linear = functools.partial(layers.SNLinear,
                           num_svs=num_G_SVs, num_itrs=num_G_SV_itrs)
-      self.which_embedding = functools.partial(layers.SNEmbedding,
-                              num_svs=num_G_SVs, num_itrs=num_G_SV_itrs)
+      self.which_embedding = nn.Embedding                    
+      #self.which_embedding = functools.partial(layers.SNEmbedding,
+                              #num_svs=num_G_SVs, num_itrs=num_G_SV_itrs)
     # PyTorch inbuilt spectral norm? Use lambdas here since functools.partial doesn't quite cut it                  
     elif self.G_param == 'PTSN':
       self.which_conv = lambda *args, **kwargs: nn.utils.spectral_norm(functools.partial(nn.Conv2d, kernel_size=3, padding=1)(*args, **kwargs))
       self.which_linear = lambda *args, **kwargs: nn.utils.spectral_norm(nn.Linear(*args, **kwargs))
-      self.which_embedding = lambda *args, **kwargs: nn.utils.spectral_norm(nn.Embedding(*args, **kwargs))
+      #self.which_embedding = lambda *args, **kwargs: nn.utils.spectral_norm(nn.Embedding(*args, **kwargs))
+      self.which_embedding = nn.Embedding
       # self.which_linear = lambda in_ch, out_ch: nn.utils.spectral_norm(nn.Linear(in_ch, out_ch))
       # self.which_embedding = lambda num_embeddings, embedding_size: nn.utils.spectral_norm(nn.Embedding(num_embeddings, embedding_size))
     else:
