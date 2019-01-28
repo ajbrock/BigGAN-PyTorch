@@ -255,7 +255,7 @@ def run(config):
   def test():
     print('Gathering inception metrics...')
     IS_mean, IS_std, FID = get_inception_metrics(sample, 50000, num_splits=10)
-    print('Inception Score is %3.3f +/- %3.3f, FID is %5.4f' % (IS_mean, IS_std, FID))
+    print('Itr %d: Inception Score is %3.3f +/- %3.3f, FID is %5.4f' % (state_dict['itr'], IS_mean, IS_std, FID))
     # If improved over previous best metric, save approrpiate copy
     if ((config['which_best'] == 'IS' and IS_mean > state_dict['best_IS'])
       or (config['which_best'] == 'FID' and FID < state_dict['best_FID'])):
