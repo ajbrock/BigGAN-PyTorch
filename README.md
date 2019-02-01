@@ -1,5 +1,6 @@
 # BigGAN-PyTorch
 The author's authorized and officially unofficial PyTorch BigGAN implementation.
+
 [Dogball? Dogball!](header_image.jpg?raw=true "Header")
 
 
@@ -32,8 +33,6 @@ If you wish to resume interrupted training, run the same launch script but with 
 
 ## To-do:
 - Debug *everything*
-- Cleanup make_imagenet_hdf5.py
 - Flesh out this readme
 - Writeup design doc
 - Write acks 
-- Determine if init style is correct? Have we always used N(0,0.02) on the embeddings?

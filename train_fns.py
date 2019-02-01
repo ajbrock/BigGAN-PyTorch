@@ -12,36 +12,24 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     y = torch.split(y, config['batch_size'])
     counter = 0
     
-    # Uncomment this to optionally toggle D's "require_grad"
-    # for param in D.parameters():
-      # param.requires_grad = True
-    
-    # Uncomment this to optionally toggle G's "require_grad"
-    # for param in G.parameters():
-      # param.requires_grad = False
+    # Optionally toggle D and G's "require_grad"
+    if config['toggle_grads']:
+      utils.toggle_grad(D, True)
+      utils.toggle_grad(G, False)
       
     for step_index in range(config['num_D_steps']):
+      # If accumulating gradients, loop multiple times before an optimizer step
       for accumulation_index in range(config['num_D_accumulations']):
         z_.normal_()
-        y_.random_(0, utils.nclass_dict[config['dataset']])
-        
-        # Uncomment this to generate a new z_ and y_ at every iteration,
-        # instead of overwriting them as above.
-        # z_ = torch.randn(G_batch_size, G.dim_z, requires_grad=False).cuda()
-        # y_ = torch.randint(low=0, high=utils.nclass_dict[config['dataset']], 
-                     # size=(G_batch_size,), device='cuda', 
-                     # dtype=torch.int64, requires_grad=False)
-                     
-        # Optionally gather some G gradients, for forward compatibility with 
-        # research options
-        #train_G = (config['merge_step'] and (step_index +1 == config['num_D_steps']))
+        y_.random_(0, utils.nclass_dict[config['dataset']])        
         D_fake, D_real = GD(z_[:config['batch_size']], y_[:config['batch_size']], 
                             x[counter], y[counter], train_G=False, split_D=config['split_D'])# train_G)
          
-        # By default, use hinge loss
+        # Compute components of D's loss, average them, and divide by 
+        # the number of gradient accumulations
         D_loss_real, D_loss_fake = losses.discriminator_loss(D_fake, D_real)
         D_loss = (D_loss_real + D_loss_fake) / float(config['num_D_accumulations'])
-        D_loss.backward()#retain_graph=train_G) # Optionally retain graph for G gradients
+        D_loss.backward()
         counter += 1
         
       # Optionally apply ortho reg in D
@@ -50,29 +38,19 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         utils.ortho(D, config['D_ortho'])
       
       D.optim.step()
+    
+    # Optionally toggle "requires_grad"
+    if config['toggle_grads']:
+      utils.toggle_grad(D, False)
+      utils.toggle_grad(G, True)
       
-    # Uncomment this to optionally toggle D's "require_grad"
-    # for param in D.parameters():
-      # param.requires_grad = False
-    # Uncomment this to optionally toggle G's "require_grad"
-    # for param in G.parameters():
-      # param.requires_grad = True
-      
-    # Zero G's gradients by default before training G; 
-    # they should already be zero, but this is just for safety atm.
+    # Zero G's gradients by default before training G, for safety
     G.optim.zero_grad()
     
+    # If accumulating gradients, loop multiple times
     for accumulation_index in range(config['num_G_accumulations']):    
       z_.normal_()
-      y_.random_(0, utils.nclass_dict[config['dataset']])
-      
-      # Uncomment this to generate a new z_ and y_ at every iteration,
-      # instead of overwriting them as above.
-      # z_ = torch.randn(G_batch_size, G.dim_z, requires_grad=False).cuda()
-      # y_ = torch.randint(low=0, high=utils.nclass_dict[config['dataset']], 
-                     # size=(G_batch_size,), device='cuda', 
-                     # dtype=torch.int64, requires_grad=False)
-                     
+      y_.random_(0, utils.nclass_dict[config['dataset']])                     
       D_fake = GD(z_, y_, train_G=True, split_D=config['split_D'])
       G_loss = losses.generator_loss(D_fake) / float(config['num_G_accumulations'])
       G_loss.backward()

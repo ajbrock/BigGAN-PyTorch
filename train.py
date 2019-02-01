@@ -133,17 +133,18 @@ import train_fns
 # The main training file. Config is a dictionary specifying the configuration 
 # of this training run.
 def run(config):
+
   # Update the config dict as necessary
+  # This is for convenience, to add settings derived from the user-specified
+  # configuration into the config-dict (e.g. inferring the number of classes
+  # and size of the images from the dataset, passing in a pytorch object
+  # for the activation specified as a string)
   config['resolution'] = utils.imsize_dict[config['dataset']]
   config['n_classes'] = utils.nclass_dict[config['dataset']]
   config['G_activation'] = utils.activation_dict[config['G_nl']]
-  config['D_activation'] = utils.activation_dict[config['D_nl']]
-  # If a base root folder is provided, peg all other root folders to it.
-  if config['base_root']:
-    print('Pegging all root folders to base root %s' % config['base_root'])
-    for key in ['data', 'weights', 'logs', 'samples']:
-      config['%s_root' % key] = '%s/%s' % (config['base_root'], key)
-
+  config['D_activation'] = utils.activation_dict[config['D_nl']]  
+  config = utils.update_config_roots(config)
+    
   # Seed RNG
   utils.seed_rng(config['seed'])
   
@@ -156,16 +157,18 @@ def run(config):
   # Import the model--this line allows us to dynamically select different files.
   model = __import__(config['model'])
   experiment_name = utils.name_from_config(config)
-  print('Experiment name is %s' % experiment_name)
-  
-  
+  print('Experiment name is %s' % experiment_name)   
   
   # Next, build the model
-  # Uncomment these lines to divide LRs by accumulation numbers
-  # G = model.Generator(**{**config, 'G_lr': config['G_lr'] / float(config['num_G_accumulations'])}).cuda()
-  # D = model.Discriminator(**{**config, 'D_lr': config['D_lr'] / float(config['num_D_accumulations'])}).cuda()
   G = model.Generator(**config).cuda()
   D = model.Discriminator(**config).cuda()
+  if config['fp16']:
+    print('Casting G and D to float16...')
+    G, D = G.half(), D.half()
+    #print('Actually, only casting G to float16')
+    # G = G.half()
+    # D = D.half()
+    # Consider automatically reducing SN_eps?
   GD = model.G_D(G, D)
   print(G)
   print(D)
@@ -182,7 +185,7 @@ def run(config):
     
   # Prepare state dict, which holds things like epoch # and itr #
   state_dict = {'itr': 0, 'epoch': 0, 'save_num': 0, 'save_best_num': 0,
-                'best_IS': 0, 'best_FID': 999999}
+                'best_IS': 0, 'best_FID': 999999, 'config': config}
   
   # If loading from a pre-trained model, load weights
   if config['load_weights']:
@@ -202,7 +205,8 @@ def run(config):
   print('Inception Metrics will be saved to {}'.format(test_metrics_fname))
   test_log = utils.MetricsLogger(test_metrics_fname, reinitialize=(not config['resume']))
   print('Training Metrics will be saved to {}'.format(train_metrics_fname))
-  train_log = utils.MyLogger(train_metrics_fname, reinitialize=(not config['resume']))
+  train_log = utils.MyLogger(train_metrics_fname, reinitialize=(not config['resume']), logstyle=config['logstyle'])
+    
   
   # Prepare data; the Discriminator's batch size is all that needs to be passed
   # to the dataloader, as G doesn't require dataloading.
@@ -216,11 +220,12 @@ def run(config):
   
   # Prepare noise and randomly sampled label arrays
   # Allow for different batch sizes in G  
-  G_batch_size = max(config['G_batch_size'], config['batch_size']) 
-  z_ = torch.randn(G_batch_size, G.dim_z, requires_grad=False).cuda()
-  y_ = torch.randint(low=0, high=utils.nclass_dict[config['dataset']], 
-                     size=(G_batch_size,), device='cuda', 
-                     dtype=torch.int64, requires_grad=False)
+  G_batch_size = max(config['G_batch_size'], config['batch_size'])
+  z_, y_ = utils.prepare_z_y(G_batch_size, G.dim_z, config['n_classes'], device='cuda', fp16=config['fp16'])
+  # z_ = torch.randn(G_batch_size, G.dim_z, requires_grad=False).cuda()
+  # y_ = torch.randint(low=0, high=config['n_classes'], 
+                     # size=(G_batch_size,), device='cuda', 
+                     # dtype=torch.int64, requires_grad=False)
 
   # Loaders are loaded, prepare the training function
   if config['which_train_fn'] == 'GAN':
@@ -244,18 +249,18 @@ def run(config):
       # For now, every time we save, also save sample sheets
       utils.sample_sheet(G_ema if config['ema'] and config['use_ema'] else G,
                          classes_per_sheet=utils.classes_per_sheet_dict[config['dataset']], 
-                         num_classes=utils.nclass_dict[config['dataset']], 
+                         num_classes=config['n_classes'], 
                          samples_per_class=10, parallel=config['parallel'],
                          samples_root=config['samples_root'], 
                          experiment_name=experiment_name,
                          folder_number=state_dict['itr'],
-                         )
+                         z_=z_)
 
   # prepare test function
   def test():
     print('Gathering inception metrics...')
     IS_mean, IS_std, FID = get_inception_metrics(sample, 50000, num_splits=10)
-    print('Inception Score is %3.3f +/- %3.3f, FID is %5.4f' % (IS_mean, IS_std, FID))
+    print('Itr %d: Inception Score is %3.3f +/- %3.3f, FID is %5.4f' % (state_dict['itr'], IS_mean, IS_std, FID))
     # If improved over previous best metric, save approrpiate copy
     if ((config['which_best'] == 'IS' and IS_mean > state_dict['best_IS'])
       or (config['which_best'] == 'FID' and FID < state_dict['best_FID'])):
@@ -268,18 +273,12 @@ def run(config):
     state_dict['best_FID'] = min(state_dict['best_FID'], FID)
     # Log results to file
     test_log.log(itr=int(state_dict['itr']), IS_mean=float(IS_mean), IS_std=float(IS_std), FID=float(FID))
-  print('Beginning training...')
   
+  print('Beginning training...')
   # Train for specified number of epochs, although we mostly track G iterations.
   for epoch in range(state_dict['epoch'], config['num_epochs']):
     # Increment epoch counter
-    state_dict['epoch'] += 1
-    
-    # Make sure G and D are in training mode, just in case they got set to eval
-    # For D, which typically doesn't have BN, this shouldn't matter much.
-    G.train()
-    D.train()
-    
+    state_dict['epoch'] += 1   
     # Which progressbar to use? TQDM or my own?
     if config['pbar'] == 'mine':
       pbar = utils.progress(loaders[0])
@@ -288,12 +287,21 @@ def run(config):
     for i, (x, y) in enumerate(pbar):
       # Increment the iteration counter
       state_dict['itr'] += 1
+      # Make sure G and D are in training mode, just in case they got set to eval
+      # For D, which typically doesn't have BN, this shouldn't matter much.
       G.train()
       D.train()
       if config['ema']:
         G_ema.train()
-      metrics = train(x.cuda(), y.cuda())
+      if config['fp16']:
+        x, y = x.cuda().half(), y.cuda()
+      else:
+        x, y = x.cuda(), y.cuda()
+      metrics = train(x, y)
       train_log.log(itr=int(state_dict['itr']), **metrics) 
+      
+      if (config['sv_log_interval'] > 0) and (not (state_dict['itr'] % config['sv_log_interval'])):
+        train_log.log(itr=int(state_dict['itr']), **{**utils.get_SVs(G, 'G'), **utils.get_SVs(D, 'D')})
       
       # If using my progbar, print metrics. 
       #Could also do this for TQDM using set_postfix.

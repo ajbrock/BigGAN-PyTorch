@@ -51,8 +51,9 @@ class Generator(nn.Module):
                G_shared=True, shared_dim=None, hier=False,
                cross_replica=False,
                G_activation=nn.ReLU(inplace=False), 
-               G_lr=5e-5, G_B1=0.0, G_B2=0.999,
-               G_init='ortho', G_param='SN', norm_style='bn',
+               G_lr=5e-5, G_B1=0.0, G_B2=0.999, adam_eps=1e-8,
+               BN_eps=1e-5, SN_eps=1e-12, G_mixed_precision=False,
+               G_init='ortho', G_param='SN', norm_style='bn', 
                **kwargs):          
     super(Generator, self).__init__()
     # Channel width mulitplier
@@ -85,7 +86,10 @@ class Generator(nn.Module):
     self.G_param = G_param
     # Normalization style
     self.norm_style = norm_style
-    
+    # Epsilon for BatchNorm?
+    self.BN_eps = BN_eps
+    # Epsilon for Spectral Norm?
+    self.SN_eps = SN_eps
     # Architecture dict
     self.arch = G_arch(self.ch, self.attention)[resolution]
     
@@ -102,9 +106,9 @@ class Generator(nn.Module):
     if self.G_param == 'SN':
       self.which_conv = functools.partial(layers.SNConv2d,
                           kernel_size=3, padding=1,
-                          num_svs=num_G_SVs, num_itrs=num_G_SV_itrs)
+                          num_svs=num_G_SVs, num_itrs=num_G_SV_itrs, eps=self.SN_eps)
       self.which_linear = functools.partial(layers.SNLinear,
-                          num_svs=num_G_SVs, num_itrs=num_G_SV_itrs)
+                          num_svs=num_G_SVs, num_itrs=num_G_SV_itrs, eps=self.SN_eps)
       self.which_embedding = nn.Embedding                    
       #self.which_embedding = functools.partial(layers.SNEmbedding,
                               #num_svs=num_G_SVs, num_itrs=num_G_SV_itrs)
@@ -112,10 +116,8 @@ class Generator(nn.Module):
     elif self.G_param == 'PTSN':
       self.which_conv = lambda *args, **kwargs: nn.utils.spectral_norm(functools.partial(nn.Conv2d, kernel_size=3, padding=1)(*args, **kwargs))
       self.which_linear = lambda *args, **kwargs: nn.utils.spectral_norm(nn.Linear(*args, **kwargs))
-      #self.which_embedding = lambda *args, **kwargs: nn.utils.spectral_norm(nn.Embedding(*args, **kwargs))
       self.which_embedding = nn.Embedding
-      # self.which_linear = lambda in_ch, out_ch: nn.utils.spectral_norm(nn.Linear(in_ch, out_ch))
-      # self.which_embedding = lambda num_embeddings, embedding_size: nn.utils.spectral_norm(nn.Embedding(num_embeddings, embedding_size))
+
     else:
       self.which_conv = functools.partial(nn.Conv2d, kernel_size=3, padding=1)
       self.which_linear = nn.Linear
@@ -126,7 +128,8 @@ class Generator(nn.Module):
                           which_linear=bn_linear,
                           cross_replica=self.cross_replica,
                           input_size=self.shared_dim + self.z_chunk_size if self.G_shared else self.n_classes,
-                          norm_style=self.norm_style)
+                          norm_style=self.norm_style,
+                          eps=self.BN_eps)
     
     
     # Prepare model
@@ -169,9 +172,17 @@ class Generator(nn.Module):
     self.init_weights()
     
     # Set up optimizer
-    self.lr, self.B1, self.B2 = G_lr, G_B1, G_B2
-    self.optim = optim.Adam(params=self.parameters(), lr=self.lr,
-                           betas=(self.B1, self.B2), weight_decay=0)
+    self.lr, self.B1, self.B2, self.adam_eps = G_lr, G_B1, G_B2, adam_eps
+    if G_mixed_precision:
+      print('Using fp16 adam in G...')
+      import utils
+      self.optim = utils.Adam16(params=self.parameters(), lr=self.lr,
+                           betas=(self.B1, self.B2), weight_decay=0, 
+                           eps=self.adam_eps)
+    else:
+      self.optim = optim.Adam(params=self.parameters(), lr=self.lr,
+                           betas=(self.B1, self.B2), weight_decay=0, 
+                           eps=self.adam_eps)
     
     # LR scheduling, left here for forward compatibility
     # self.lr_sched = {'itr' : 0}# if self.progressive else {}
@@ -257,8 +268,8 @@ class Discriminator(nn.Module):
   def __init__(self, D_ch=64, resolution=128,
                D_kernel_size=3, D_attn='64', n_classes=1000,
                num_D_SVs=1, num_D_SV_itrs=1, D_activation=nn.ReLU(inplace=False),
-               D_lr=2e-4, D_B1=0.0, D_B2=0.999,
-               D_param='SN', output_dim=1,
+               D_lr=2e-4, D_B1=0.0, D_B2=0.999, adam_eps=1e-8,
+               D_param='SN', SN_eps=1e-12, output_dim=1, D_mixed_precision=False,
                D_init='ortho', **kwargs):
     super(Discriminator, self).__init__()
     # Width multiplier
@@ -277,6 +288,8 @@ class Discriminator(nn.Module):
     self.init = D_init
     # Parameterization style
     self.D_param = D_param
+    # Epsilon for Spectral Norm?
+    self.SN_eps = SN_eps
     # Architecture
     self.arch = D_arch(self.ch, self.attention)[resolution]
     
@@ -285,17 +298,18 @@ class Discriminator(nn.Module):
     if self.D_param == 'SN':
       self.which_conv = functools.partial(layers.SNConv2d,
                           kernel_size=3, padding=1,
-                          num_svs=num_D_SVs, num_itrs=num_D_SV_itrs)
+                          num_svs=num_D_SVs, num_itrs=num_D_SV_itrs, eps=self.SN_eps)
       self.which_linear = functools.partial(layers.SNLinear,
-                          num_svs=num_D_SVs, num_itrs=num_D_SV_itrs)
+                          num_svs=num_D_SVs, num_itrs=num_D_SV_itrs, eps=self.SN_eps)
       self.which_embedding = functools.partial(layers.SNEmbedding,
-                              num_svs=num_D_SVs, num_itrs=num_D_SV_itrs)
+                              num_svs=num_D_SVs, num_itrs=num_D_SV_itrs, eps=self.SN_eps)
 
     # PyTorch inbuilt spectral norm? Use lambdas here since functools.partial doesn't quite cut it                  
     elif self.D_param == 'PTSN':
       self.which_conv = lambda *args, **kwargs: nn.utils.spectral_norm(functools.partial(nn.Conv2d, kernel_size=3, padding=1)(*args, **kwargs))
       self.which_linear = lambda *args, **kwargs: nn.utils.spectral_norm(nn.Linear(*args, **kwargs))
       self.which_embedding = lambda *args, **kwargs: nn.utils.spectral_norm(nn.Embedding(*args, **kwargs))
+    
     # Prepare model
     # self.blocks is a doubly-nested list of modules, the outer loop intended
     # to be over blocks at a given resolution (resblocks and/or self-attention)
@@ -324,9 +338,15 @@ class Discriminator(nn.Module):
     self.init_weights()
     
     # Set up optimizer
-    self.lr, self.B1, self.B2 = D_lr, D_B1, D_B2
-    self.optim = optim.Adam(params=self.parameters(), lr=self.lr,
-                           betas=(D_B1, D_B2), weight_decay=0)
+    self.lr, self.B1, self.B2, self.adam_eps = D_lr, D_B1, D_B2, adam_eps
+    if D_mixed_precision:
+      print('Using fp16 adam in D...')
+      import utils
+      self.optim = utils.Adam16(params=self.parameters(), lr=self.lr,
+                             betas=(self.B1, self.B2), weight_decay=0, eps=self.adam_eps)
+    else:
+      self.optim = optim.Adam(params=self.parameters(), lr=self.lr,
+                             betas=(self.B1, self.B2), weight_decay=0, eps=self.adam_eps)
     # LR scheduling, left here for forward compatibility
     # self.lr_sched = {'itr' : 0}# if self.progressive else {}
     # self.j = 0 

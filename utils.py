@@ -12,6 +12,7 @@ import os
 import numpy as np
 import time
 import json
+import pickle
 from argparse import ArgumentParser
 import animal_hash
 
@@ -41,6 +42,15 @@ def prepare_parser():
     '--parallel', action='store_true', default=False,
     help='Train with multiple GPUs (default: %(default)s)')
   parser.add_argument(
+    '--fp16', action='store_true', default=False,
+    help='Train with half-precision? (default: %(default)s)')
+  parser.add_argument(
+    '--D_mixed_precision', action='store_true', default=False,
+    help='Train with half-precision activations but fp32 params in D? (default: %(default)s)')
+  parser.add_argument(
+    '--G_mixed_precision', action='store_true', default=False,
+    help='Train with half-precision activations but fp32 params in G? (default: %(default)s)')
+  parser.add_argument(
     '--augment', action='store_true', default=False,
     help='Augment with random crops and flips (default: %(default)s)')
   parser.add_argument(
@@ -58,6 +68,9 @@ def prepare_parser():
   parser.add_argument(
     '--test_every', type=int, default=5000,
     help='Test every X iterations (default: %(default)s)')
+  parser.add_argument(
+    '--sv_log_interval', type=int, default=10,
+    help='Iteration interval for logging singular values (default: %(default)s)')
   parser.add_argument(
     '--G_eval_mode', action='store_true', default=False,
     help='Run G in eval mode (running stats?) at save+sample / testtime? (default: %(default)s)')
@@ -93,11 +106,18 @@ def prepare_parser():
     '--logs_root', type=str, default='/home/s1580274/scratch/logs',
     help='Default location to store logs (default: %(default)s)')
   parser.add_argument(
+    '--logstyle', type=str, default='%3.3e',
+    help='What style to use when logging training metrics?'
+         'One of: %#.#f/ %#.#e (float/exp, text),'
+         'pickle (python pickle),'
+         'npz (numpy zip),'
+         'mat (MATLAB .mat file) (default: %(default)s)')
+  parser.add_argument(
     '--samples_root', type=str, default='/home/s1580274/scratch/samples',
     help='Default location to store samples (default: %(default)s)')  
   parser.add_argument(
-    '--weights_suffix', type=str, default='',
-    help='Suffix for experiment name for loading weights for sampling (consider "best0") (default: %(default)s)')  
+    '--name_suffix', type=str, default='',
+    help='Suffix for experiment name for loading weights for sampling (consider "best0") (default: %(default)s)')
   parser.add_argument(
     '--pbar', type=str, default='mine',
     help='Type of progressbar to use; one of "mine" or "tqdm" (default: %(default)s)')
@@ -145,10 +165,7 @@ def prepare_parser():
     help='Number of D steps per G step (default: %(default)s)')
   parser.add_argument(
     '--num_D_accumulations', type=int, default=1,
-    help='Number of passes to accumulate D''s gradients over (default: %(default)s)')
-  parser.add_argument(
-    '--merge_step', action='store_true', default=False,
-    help='Use merge_step during training? (default: %(default)s)')
+    help='Number of passes to accumulate D''s gradients over (default: %(default)s)')  
   parser.add_argument(
     '--split_D', action='store_true', default=False,
     help='Run D twice rather than concatenating inputs? (default: %(default)s)')
@@ -157,7 +174,7 @@ def prepare_parser():
     help='Learning rate to use for Generator (default: %(default)s)')
   parser.add_argument(
     '--D_lr', type=float, default=2e-4,
-    help='Learning rate to use for Discriminator (default: %(default)s)')
+    help='Learning rate to use for Discriminator (default: %(default)s)')   
   parser.add_argument(
     '--G_B1', type=float, default=0.0,
     help='Beta1 to use for Generator (default: %(default)s)')
@@ -170,6 +187,15 @@ def prepare_parser():
   parser.add_argument(
     '--D_B2', type=float, default=0.999,
     help='Beta2 to use for Discriminator (default: %(default)s)')
+  parser.add_argument(
+    '--adam_eps', type=float, default=1e-8,
+    help='epsilon value to use for Adam (default: %(default)s)')
+  parser.add_argument(
+    '--BN_eps', type=float, default=1e-5,
+    help='epsilon value to use for BatchNorm (default: %(default)s)')
+  parser.add_argument(
+    '--SN_eps', type=float, default=1e-8,
+    help='epsilon value to use for Spectral Norm(default: %(default)s)')  
   parser.add_argument(
     '--num_G_SVs', type=int, default=1,
     help='Number of SVs to track in G (default: %(default)s)')
@@ -207,17 +233,27 @@ def prepare_parser():
     '--D_param', type=str, default='SN',
     help='Parameterization style to use for D, spectral norm (SN) or SVD (SVD)(default: %(default)s)')
   parser.add_argument(
-    '--G_ortho', type=float, default=0,#1e-4, # 1e-4 should be default for BigGAN
+    '--G_ortho', type=float, default=0.0,#1e-4, # 1e-4 should be default for BigGAN
     help='Modified ortho reg (default: %(default)s)')
   parser.add_argument(
     '--D_ortho', type=float, default=0.0,
     help='Modified ortho reg strength in D (default: %(default)s)')
+  parser.add_argument(
+    '--toggle_grads', action='store_true', default=True,
+    help='Toggle D and G''s "requires_grad" settings when not training them? (default: %(default)s)')
   parser.add_argument(
     '--norm_style', type=str, default='bn',
     help='Normalizer style for G, one of bn [batchnorm], in [instancenorm], ln [layernorm], gn [groupnorm] (default: %(default)s)')
   parser.add_argument(
     '--which_train_fn', type=str, default='GAN',
     help='How2trainyourbois (default: %(default)s)')
+  parser.add_argument(
+    '--log_G_spectra', action='store_true', default=False,
+    help='Log the top 3 singular values in each SN layer in G? default: %(default)s)')
+  parser.add_argument(
+    '--log_D_spectra', action='store_true', default=False,
+    help='Log the top 3 singular values in each SN layer in D? default: %(default)s)')
+  'sv_log_interval'
   parser.add_argument(
     '--load_in_mem', action='store_true', default=False,
     help='Load all data into memory? default: %(default)s)')  
@@ -229,6 +265,27 @@ def prepare_parser():
     help='Resume training? (default: %(default)s)')
   return parser
 
+# Arguments for sample.py; not presently used in train.py or elsewhere
+def add_sample_parser(parser):
+  parser.add_argument(
+    '--sample_npz', action='store_true', default=False,
+    help='Sample "sample_num_npz" images and save to npz? (default: %(default)s)')
+  parser.add_argument(
+    '--sample_num_npz', type=int, default=50000,
+    help='Number of images to sample when sampling NPZs (default: %(default)s)')
+  parser.add_argument(
+    '--sample_sheets', action='store_true', default=False,
+    help='Produce class-conditional sample sheets and stick them in the samples root? (default: %(default)s)')
+  parser.add_argument(
+    '--sample_sheet_folder_num', type=int, default=-1,
+    help='Number to use for the folder for these sample sheets (default: %(default)s)')
+  parser.add_argument(
+    '--sample_random', action='store_true', default=False,
+    help='Produce class-conditional sample sheets and stick them in the samples root? (default: %(default)s)')    
+  parser.add_argument(
+    '--sample_inception_metrics', action='store_true', default=False,
+    help='Calculate Inception metrics with sample.py? (default: %(default)s)')
+  return parser
 
 # Convenience dicts
 dset_dict = {'I32': dset.ImageFolder, 'I64': dset.ImageFolder, 'I128': dset.ImageFolder, 'I256': dset.ImageFolder,
@@ -373,18 +430,32 @@ def get_data_loaders(dataset, dataset_root=None, augment=False, batch_size=64, n
   loaders.append(train_loader)                           
   return loaders
 
+
 # Utility file to seed rngs
 def seed_rng(seed):
   torch.manual_seed(seed)
   torch.cuda.manual_seed(seed)
   np.random.seed(seed)
   
+  
+# Utility to peg all roots to a base root
+# If a base root folder is provided, peg all other root folders to it.
+def update_config_roots(config):
+  if config['base_root']:
+    print('Pegging all root folders to base root %s' % config['base_root'])
+    for key in ['data', 'weights', 'logs', 'samples']:
+      config['%s_root' % key] = '%s/%s' % (config['base_root'], key)
+  return config
+
+
 # Utility to prepare root folders if they don't exist; parent folder must exist
 def prepare_root(config):
   for key in ['weights_root', 'logs_root', 'samples_root']:
     if not os.path.exists(config[key]):
       print('Making directory %s for %s...' % (config[key], key))
       os.mkdir(config[key])
+
+
 # Simple wrapper that applies EMA to a model. COuld be better done in 1.0 using
 # the parameters() and buffers() module functions, but for now this works
 # with state_dicts using .copy_
@@ -441,7 +512,14 @@ def default_ortho(model, strength=1e-4, blacklist=[]):
       grad = 2 * torch.mm(torch.mm(w, w.t()) - torch.eye(w.shape[0], device=w.device), w)
       param.grad.data += strength * grad.view(param.shape)
 
- # Save a model's weights, optimizer, and the state_dict
+
+# Convenience utility to switch off requires_grad
+def toggle_grad(model, on_or_off):
+  for param in model.parameters():
+    param.requires_grad = on_or_off
+
+
+# Save a model's weights, optimizer, and the state_dict
 def save_weights(G, D, state_dict, weights_root, experiment_name, G_ema=None):
   root = '/'.join([weights_root, experiment_name])
   print('Saving weights to %s...' % root)
@@ -453,7 +531,7 @@ def save_weights(G, D, state_dict, weights_root, experiment_name, G_ema=None):
   if G_ema is not None:
     torch.save(G_ema.state_dict(), '%s_G_ema.pth' % root) 
       
-# load weights
+# Load a model's weights, optimizer, and the state_dict
 def load_weights(G, D, state_dict, weights_root, experiment_name, G_ema=None):
   root = '/'.join([weights_root, experiment_name])
   print('Loading weights from %s...' % root )
@@ -469,15 +547,16 @@ def load_weights(G, D, state_dict, weights_root, experiment_name, G_ema=None):
   if G_ema is not None:
     G_ema.load_state_dict(torch.load('%s_G_ema.pth' % root))
 
-''' MetricsLogger originally stolen from VoxNet source code.'''
+''' MetricsLogger originally stolen from VoxNet source code.
+    Used for logging inception metrics'''
 class MetricsLogger(object):
   def __init__(self, fname, reinitialize=False):
     self.fname = fname
     self.reinitialize = reinitialize
     if os.path.exists(self.fname):
       if self.reinitialize:
-        print('{} exists, not deleting...'.format(self.fname))
-        #os.path.remove(self.fname)
+        print('{} exists, deleting...'.format(self.fname))
+        os.remove(self.fname)
 
   def log(self, record=None, **kwargs):
     """
@@ -490,27 +569,46 @@ class MetricsLogger(object):
     with open(self.fname, 'a') as f:
       f.write(json.dumps(record, ensure_ascii=True) + '\n')
 
+# Logstyle is either:
+# '%#.#f' for floating point representation in text
+# '%#.#e' for exponent representation in text 
+# 'npz' for output to npz
+# 'pickle' for output to a python pickle
+# 'mat' for output to a MATLAB .mat file
 class MyLogger(object):
   def __init__(self, fname, reinitialize=False, logstyle='%3.3f'):
     self.root = fname
+    if not os.path.exists(self.root):
+      os.mkdir(self.root)
     self.reinitialize = reinitialize
     self.metrics = []
     self.logstyle = logstyle # One of '%3.3f' or like '%3.3e'
     #for suffix in 'D_loss_real', 'D_loss_fake', 'G_loss', 'recon', 'kl':
   # Delete log if re-starting and log already exists 
   def reinit(self, item):
-    if os.path.exists('%s_%s.log' % (self.root, item)):
+    if os.path.exists('%s/%s.log' % (self.root, item)):
       if self.reinitialize:
-        print('{} exists, deleting...'.format('%s_%s.log' % (self.root, item)))
-        os.remove('%s_%s.log' % (self.root, item))
+        # Only print the removal mess
+        if 'sv' in item :
+          if not any('sv' in item for item in self.metrics):
+            print('Deleting singular value logs...')
+        else:
+          print('{} exists, deleting...'.format('%s_%s.log' % (self.root, item)))
+        os.remove('%s/%s.log' % (self.root, item))
   # Log in plaintext; this is designed for being read/plotted in matlab (sorry not sorry)
   def log(self, itr, **kwargs):
     for arg in kwargs:
       if arg not in self.metrics:
-        self.reinit(arg)
+        if self.reinitialize:
+          self.reinit(arg)
         self.metrics += [arg]
-      with open('%s_%s.log' % (self.root, arg), 'a') as f:
-        f.write('%d: %s\n' % (itr, self.logstyle % kwargs[arg]))
+      if self.logstyle == 'pickle':
+        print('Pickle not currently supported...')
+         # with open('%s/%s.log' % (self.root, arg), 'a') as f:
+          # pickle.dump(kwargs[arg], f)
+      else:
+        with open('%s/%s.log' % (self.root, arg), 'a') as f:
+          f.write('%d: %s\n' % (itr, self.logstyle % kwargs[arg]))
   
 """
 Very basic progress indicator to wrap an iterable in.
@@ -550,7 +648,7 @@ def progress(items, desc='', total=None, min_delay=0.1):
 def sample(G, z_, y_, config):
   with torch.no_grad():
     z_.normal_()
-    y_.random_(0, nclass_dict[config['dataset']])
+    y_.random_(0, config['n_classes'])
     if config['parallel']:
       G_z =  nn.parallel.data_parallel(G, (z_, G.shared(y_)))
     else:
@@ -565,7 +663,7 @@ def sample(G, z_, y_, config):
 # e.g. 10 samples_per_class, 20 sheets, 1000 classes, yields 50 classes per sheet
 # and 500 images per sheet, so a batch size of 20 or 100 would be good.
 def sample_sheet(G, classes_per_sheet, num_classes, samples_per_class, parallel, 
-                 samples_root, experiment_name, folder_number):
+                 samples_root, experiment_name, folder_number, z_=None):
   # Prepare sample directory
   if not os.path.isdir('%s/%s' % (samples_root, experiment_name)):
     os.mkdir('%s/%s' % (samples_root, experiment_name))
@@ -576,16 +674,19 @@ def sample_sheet(G, classes_per_sheet, num_classes, samples_per_class, parallel,
     ims = []
     y = torch.arange(i * classes_per_sheet, (i + 1) * classes_per_sheet, device='cuda')
     for j in range(samples_per_class):
-      z = torch.randn(classes_per_sheet, G.dim_z, device='cuda')
+      if z_ is None:
+        z = torch.randn(classes_per_sheet, G.dim_z, device='cuda')
+      else:
+        z_.normal_()
       with torch.no_grad():
         if parallel:
-          o = nn.parallel.data_parallel(G, (z, G.shared(y)))
+          o = nn.parallel.data_parallel(G, (z_[:classes_per_sheet], G.shared(y)))
         else:
-          o = G(z, G.shared(y))
+          o = G(z_, G.shared(y))
         
       ims += [o]
     # This line should properly unroll the images
-    out_ims = torch.stack(ims, 1).view(-1, ims[0].shape[1], ims[0].shape[2], ims[0].shape[3]).data.cpu()
+    out_ims = torch.stack(ims, 1).view(-1, ims[0].shape[1], ims[0].shape[2], ims[0].shape[3]).data.float().cpu()
     # The path for the samples    
     image_filename = '%s/%s/%d/samples%d.jpg' % (samples_root, experiment_name, folder_number, i) 
     torchvision.utils.save_image(out_ims, image_filename,
@@ -643,7 +744,14 @@ def print_grad_norms(net):
     #['%3.3e,%3.3e, %s' % (float(torch.abs(param.grad).sum().cpu()), float(torch.abs(param).sum().cpu()), str(param.shape)) for param in G.parameters()]
     print(['%3.3e,%3.3e, %s' % (gradsums[item_index][0], gradsums[item_index][1], str(gradsums[item_index][2])) for item_index in order])
 
-    
+
+# Get singular values to log. This will use the state dict to find them
+# and substitute underscores for 
+def get_SVs(net, prefix):
+  d = net.state_dict()
+  return {('%s_%s' % (prefix, key)).replace('.', '_') : 
+            float(d[key].cpu().numpy()) 
+            for key in d if 'sv' in key}
 # Name an experiment based on its config
 def name_from_config(config):
   name = '_'.join([
@@ -654,6 +762,7 @@ def name_from_config(config):
   'Gch%d' % config['G_ch'],
   'Dch%d' % config['D_ch'],
   'bs%d' % config['batch_size'],
+  'fp16' if config['fp16'] else None,
   'nDs%d' % config['num_D_steps'] if config['num_D_steps'] > 1 else None,
   'nDa%d' % config['num_D_accumulations'] if config['num_D_accumulations'] > 1 else None,
   'nGa%d' % config['num_G_accumulations'] if config['num_G_accumulations'] > 1 else None,
@@ -678,7 +787,7 @@ def name_from_config(config):
   'Gshared' if config['G_shared'] else None,
   'hier' if config['hier'] else None,
   'ema' if config['ema'] else None,
-  config['weights_suffix'] if config['weights_suffix'] else None,  
+  config['name_suffix'] if config['name_suffix'] else None,  
   ]
   if item is not None])
   # Instead of a d
@@ -712,9 +821,86 @@ def count_parameters(module):
        
        
 # Convenience function to prepare a z and y vector       
-def prepare_zy(G_batch_size, dim_z, nclasses, device='cuda'):
+def prepare_z_y(G_batch_size, dim_z, nclasses, device='cuda', fp16=False):
   z_ = torch.randn(G_batch_size, dim_z, requires_grad=False, device=device)
+  if fp16:
+    z_ = z_.half()
   y_ = torch.randint(low=0, high=nclasses, 
                      size=(G_batch_size,), device=device, 
                      dtype=torch.int64, requires_grad=False)
   return z_, y_
+
+  
+import math
+from torch.optim.optimizer import Optimizer
+
+# This version of Adam keeps an fp32 copy of the parameters and 
+# does all of the parameter updates in fp32, while still doing the
+# forwards and backwards passes using fp16 (i.e. fp16 copies of the 
+# parameters and fp16 activations).
+#
+# Note that this calls .float().cuda() on the params such that it 
+# moves them to gpu 0--if you're using a different GPU or want to 
+# do multi-GPU you may need to deal with this.
+class Adam16(Optimizer):
+  def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8,weight_decay=0):
+    defaults = dict(lr=lr, betas=betas, eps=eps,
+            weight_decay=weight_decay)
+    params = list(params)
+    super(Adam16, self).__init__(params, defaults)
+    # for group in self.param_groups:
+      # for p in group['params']:
+    
+    self.fp32_param_groups = [p.data.float().cuda() for p in params]
+    if not isinstance(self.fp32_param_groups[0], dict):
+      self.fp32_param_groups = [{'params': self.fp32_param_groups}]
+
+  def step(self, closure=None):
+    """Performs a single optimization step.
+    Arguments:
+      closure (callable, optional): A closure that reevaluates the model
+        and returns the loss.
+    """
+    loss = None
+    if closure is not None:
+      loss = closure()
+
+    for group,fp32_group in zip(self.param_groups, self.fp32_param_groups):
+      for p, fp32_p in zip(group['params'], fp32_group['params']):
+        if p.grad is None:
+          continue
+          
+        grad = p.grad.data.float()
+        state = self.state[p]
+
+        # State initialization
+        if len(state) == 0:
+          state['step'] = 0
+          # Exponential moving average of gradient values
+          state['exp_avg'] = grad.new().resize_as_(grad).zero_()
+          # Exponential moving average of squared gradient values
+          state['exp_avg_sq'] = grad.new().resize_as_(grad).zero_()
+
+        exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
+        beta1, beta2 = group['betas']
+
+        state['step'] += 1
+
+        if group['weight_decay'] != 0:
+          grad = grad.add(group['weight_decay'], fp32_p)
+
+        # Decay the first and second moment running average coefficient
+        exp_avg.mul_(beta1).add_(1 - beta1, grad)
+        exp_avg_sq.mul_(beta2).addcmul_(1 - beta2, grad, grad)
+
+        denom = exp_avg_sq.sqrt().add_(group['eps'])
+
+        bias_correction1 = 1 - beta1 ** state['step']
+        bias_correction2 = 1 - beta2 ** state['step']
+        step_size = group['lr'] * math.sqrt(bias_correction2) / bias_correction1
+      
+        # print(type(fp32_p))
+        fp32_p.addcdiv_(-step_size, exp_avg, denom)
+        p.data = fp32_p.half()
+
+    return loss

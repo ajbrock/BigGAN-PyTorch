@@ -15,10 +15,10 @@ import os
 import argparse
 
 import h5py
-import tensorflow as tf
-import tensorflow_hub as hub
 import torch
 from torchvision.utils import save_image
+import tensorflow as tf
+import tensorflow_hub as hub
 
 import biggan
 
@@ -213,16 +213,31 @@ def convert_biggan(resolution, weight_dir, redownload=False, no_ema=False, verbo
     return G
 
 
-def generate_sample(G, z_dim, batch_size, filename):
+def generate_sample(G, z_dim, batch_size, filename, parallel=False):
     G.eval()
     G.to(DEVICE)
+    if parallel:
+      G = torch.nn.DataParallel(G)
     with torch.no_grad():
         label = torch.LongTensor(batch_size, 1).random_() % 1000
         oh = torch.zeros(batch_size, 1000).scatter_(1, label.long(), 1).to(DEVICE)
         z = torch.tensor(biggan.truncated_z_sample(batch_size, z_dim), dtype=torch.float32).to(DEVICE)
         images = G(z, oh)
         save_image(biggan.denorm(images), filename, scale_each=True, normalize=True)
-
+    # if full_sheets:
+      # import utils
+      # config = {'dataset': 'I128', 'parallel': parallel, 'samples_root': '/home/s1580274/scratch/samples/', 'itr': 0}
+      # G.shared = lambda label: torch.zeros(label.shape[0], 1000).to(label.device).scatter_(1, label.long().view(-1,1), 1)#.to(DEVICE)
+      # G.dim_z = z_dim
+      # import utils
+      # utils.sample_sheet(G,
+                           # classes_per_sheet=utils.classes_per_sheet_dict[config['dataset']], 
+                           # num_classes=utils.nclass_dict[config['dataset']], 
+                           # samples_per_class=10, parallel=config['parallel'],
+                           # samples_root=config['samples_root'], 
+                           # experiment_name='TFHUBW',
+                           # folder_number=-1,
+                           # )
 
 def parse_args():
     usage = 'Parser for conversion script.'
@@ -249,6 +264,9 @@ def parse_args():
     parser.add_argument(
         '--batch_size', type=int, default=16,
         help='Batch size used for test sample.')
+    parser.add_argument(
+        '--parallel', action='store_true', default=False,
+        help='Parallelize G?')       
     args = parser.parse_args()
     return args
 
@@ -265,7 +283,7 @@ if __name__ == '__main__':
                            no_ema=args.no_ema, verbose=args.verbose)
         if args.generate_samples:
             filename = os.path.join(args.samples_dir, f'biggan{args.resolution}_samples.jpg')
-            generate_sample(G, Z_DIMS[args.resolution], args.batch_size, filename)
+            generate_sample(G, Z_DIMS[args.resolution], args.batch_size, filename, args.parallel)
     else:
         for res in RESOLUTIONS:
             G = convert_biggan(res, args.weights_dir,
@@ -273,4 +291,4 @@ if __name__ == '__main__':
                                no_ema=args.no_ema, verbose=args.verbose)
             if args.generate_samples:
                 filename = os.path.join(args.samples_dir, f'biggan{res}_samples.jpg')
-                generate_sample(G, Z_DIMS[res], args.batch_size, filename)
+                generate_sample(G, Z_DIMS[res], args.batch_size, filename, args.parallel)

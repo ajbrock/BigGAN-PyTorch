@@ -143,7 +143,7 @@ def accumulate_inception_activations(sample, net, num_inception_images=50000):
   while (np.shape(np.concatenate(logits, 0))[0] if len(logits) else 0) < num_inception_images:
     with torch.no_grad():
       images, labels_val = sample()
-      pool_val, logits_val = net(images)
+      pool_val, logits_val = net(images.float())
       pool += [np.asarray(pool_val.cpu())]
       logits += [np.asarray(F.softmax(logits_val, 1).cpu())]
       labels += [np.asarray(labels_val.cpu())]
