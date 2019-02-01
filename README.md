@@ -1,7 +1,7 @@
 # BigGAN-PyTorch
 The author's authorized and officially unofficial PyTorch BigGAN implementation.
 
-[Dogball? Dogball!](header_image.jpg?raw=true "Header")
+![Dogball? Dogball!](header_image.jpg?raw=true "Header")
 
 
 This repo contains code for replicating experiments from [Large Scale GAN Training for High Fidelity Natural Image Synthesis](https://arxiv.org/abs/1809.11096) by Andrew Brock, Jeff Donahue, and Karen Simonyan.
