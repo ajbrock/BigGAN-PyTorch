@@ -42,8 +42,11 @@ def prepare_parser():
     '--parallel', action='store_true', default=False,
     help='Train with multiple GPUs (default: %(default)s)')
   parser.add_argument(
-    '--fp16', action='store_true', default=False,
-    help='Train with half-precision? (default: %(default)s)')
+    '--G_fp16', action='store_true', default=False,
+    help='Train with half-precision in G? (default: %(default)s)')
+  parser.add_argument(
+    '--D_fp16', action='store_true', default=False,
+    help='Train with half-precision in D? (default: %(default)s)')
   parser.add_argument(
     '--D_mixed_precision', action='store_true', default=False,
     help='Train with half-precision activations but fp32 params in D? (default: %(default)s)')
@@ -765,7 +768,8 @@ def name_from_config(config):
   'Gch%d' % config['G_ch'],
   'Dch%d' % config['D_ch'],
   'bs%d' % config['batch_size'],
-  'fp16' if config['fp16'] else None,
+  'Gfp16' if config['G_fp16'] else None,
+  'Dfp16' if config['D_fp16'] else None,
   'nDs%d' % config['num_D_steps'] if config['num_D_steps'] > 1 else None,
   'nDa%d' % config['num_D_accumulations'] if config['num_D_accumulations'] > 1 else None,
   'nGa%d' % config['num_G_accumulations'] if config['num_G_accumulations'] > 1 else None,
@@ -853,11 +857,19 @@ class Adam16(Optimizer):
     super(Adam16, self).__init__(params, defaults)
     # for group in self.param_groups:
       # for p in group['params']:
-
-    self.fp32_param_groups = [p.data.float().cuda() for p in params]
-    if not isinstance(self.fp32_param_groups[0], dict):
-      self.fp32_param_groups = [{'params': self.fp32_param_groups}]
-
+    
+    #self.fp32_param_groups = [p.data.float().cuda() for p in params]
+    #if not isinstance(self.fp32_param_groups[0], dict):
+      #self.fp32_param_groups = [{'params': self.fp32_param_groups}]
+      
+  # Safety modification to make sure we floatify our state
+  def load_state_dict(self, state_dict):
+    super(Adam16, self).load_state_dict(state_dict)
+    for group in self.param_groups:
+      for p in group['params']:
+        self.state[p]['exp_avg'] = self.state[p]['exp_avg'].float()
+        self.state[p]['exp_avg_sq'] = self.state[p]['exp_avg_sq'].float()
+        self.state[p]['fp32_p'] = self.state[p]['fp32_p'].float()
   def step(self, closure=None):
     """Performs a single optimization step.
     Arguments:
@@ -868,11 +880,13 @@ class Adam16(Optimizer):
     if closure is not None:
       loss = closure()
 
-    for group,fp32_group in zip(self.param_groups, self.fp32_param_groups):
-      for p, fp32_p in zip(group['params'], fp32_group['params']):
+    #for group,fp32_group in zip(self.param_groups, self.fp32_param_groups):
+      #for p, fp32_p in zip(group['params'], fp32_group['params']):
+    for group in self.param_groups:
+      for p in group['params']:
         if p.grad is None:
           continue
-
+          
         grad = p.grad.data.float()
         state = self.state[p]
 
@@ -883,6 +897,8 @@ class Adam16(Optimizer):
           state['exp_avg'] = grad.new().resize_as_(grad).zero_()
           # Exponential moving average of squared gradient values
           state['exp_avg_sq'] = grad.new().resize_as_(grad).zero_()
+          # Fp32 copy of the weights
+          state['fp32_p'] = p.data.float()
 
         exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
         beta1, beta2 = group['betas']
@@ -890,7 +906,7 @@ class Adam16(Optimizer):
         state['step'] += 1
 
         if group['weight_decay'] != 0:
-          grad = grad.add(group['weight_decay'], fp32_p)
+          grad = grad.add(group['weight_decay'], state['fp32_p'])
 
         # Decay the first and second moment running average coefficient
         exp_avg.mul_(beta1).add_(1 - beta1, grad)
@@ -901,9 +917,8 @@ class Adam16(Optimizer):
         bias_correction1 = 1 - beta1 ** state['step']
         bias_correction2 = 1 - beta2 ** state['step']
         step_size = group['lr'] * math.sqrt(bias_correction2) / bias_correction1
-
-        # print(type(fp32_p))
-        fp32_p.addcdiv_(-step_size, exp_avg, denom)
-        p.data = fp32_p.half()
+      
+        state['fp32_p'].addcdiv_(-step_size, exp_avg, denom)
+        p.data = state['fp32_p'].half()
 
     return loss

@@ -53,7 +53,7 @@ class Generator(nn.Module):
                cross_replica=False,
                G_activation=nn.ReLU(inplace=False),
                G_lr=5e-5, G_B1=0.0, G_B2=0.999, adam_eps=1e-8,
-               BN_eps=1e-5, SN_eps=1e-12, G_mixed_precision=False,
+               BN_eps=1e-5, SN_eps=1e-12, G_mixed_precision=False, G_fp16=False,
                G_init='ortho', G_param='SN', norm_style='bn',
                **kwargs):
     super(Generator, self).__init__()
@@ -91,6 +91,8 @@ class Generator(nn.Module):
     self.BN_eps = BN_eps
     # Epsilon for Spectral Norm?
     self.SN_eps = SN_eps
+    # fp16?
+    self.fp16 = G_fp16
     # Architecture dict
     self.arch = G_arch(self.ch, self.attention)[resolution]
 
@@ -270,7 +272,7 @@ class Discriminator(nn.Module):
                D_kernel_size=3, D_attn='64', n_classes=1000,
                num_D_SVs=1, num_D_SV_itrs=1, D_activation=nn.ReLU(inplace=False),
                D_lr=2e-4, D_B1=0.0, D_B2=0.999, adam_eps=1e-8,
-               D_param='SN', SN_eps=1e-12, output_dim=1, D_mixed_precision=False,
+               D_param='SN', SN_eps=1e-12, output_dim=1, D_mixed_precision=False, D_fp16=False,
                D_init='ortho', **kwargs):
     super(Discriminator, self).__init__()
     # Width multiplier
@@ -291,6 +293,8 @@ class Discriminator(nn.Module):
     self.D_param = D_param
     # Epsilon for Spectral Norm?
     self.SN_eps = SN_eps
+    # Fp16?
+    self.fp16 = D_fp16
     # Architecture
     self.arch = D_arch(self.ch, self.attention)[resolution]
 
@@ -401,7 +405,11 @@ class G_D(nn.Module):
     with torch.set_grad_enabled(train_G):
       # Get Generator output given noise
       G_z = self.G(z, self.G.shared(gy))
-
+      # Cast as necessary
+      if self.G.fp16 and not self.D.fp16:
+        G_z = G_z.float()
+      if self.D.fp16 and not self.G.fp16:
+        G_z = G_z.half()
     # Split_D means to run D once with real data and once with fake,
     # rather than concatenating along the batch dimension
     if split_D:

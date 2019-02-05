@@ -163,12 +163,16 @@ def run(config):
   # Next, build the model
   G = model.Generator(**config).cuda()
   D = model.Discriminator(**config).cuda()
-  if config['fp16']:
-    print('Casting G and D to float16...')
-    G, D = G.half(), D.half()
+  #if config['fp16']:
+    # print('Casting G and D to float16...')
+    # G, D = G.half(), D.half()
     #print('Actually, only casting G to float16')
-    # G = G.half()
-    # D = D.half()
+  if config['G_fp16']:
+    print('Casting G to float16...')
+    G = G.half()
+  if config['D_fp16']:
+    print('Casting D to fp16...')
+    D = D.half()
     # Consider automatically reducing SN_eps?
   GD = model.G_D(G, D)
   print(G)
@@ -225,7 +229,7 @@ def run(config):
   # Prepare noise and randomly sampled label arrays
   # Allow for different batch sizes in G
   G_batch_size = max(config['G_batch_size'], config['batch_size'])
-  z_, y_ = utils.prepare_z_y(G_batch_size, G.dim_z, config['n_classes'], device='cuda', fp16=config['fp16'])
+  z_, y_ = utils.prepare_z_y(G_batch_size, G.dim_z, config['n_classes'], device='cuda', fp16=config['G_fp16'])
   # z_ = torch.randn(G_batch_size, G.dim_z, requires_grad=False).cuda()
   # y_ = torch.randint(low=0, high=config['n_classes'],
                      # size=(G_batch_size,), device='cuda',
@@ -297,7 +301,7 @@ def run(config):
       D.train()
       if config['ema']:
         G_ema.train()
-      if config['fp16']:
+      if config['D_fp16']:
         x, y = x.cuda().half(), y.cuda()
       else:
         x, y = x.cuda(), y.cuda()

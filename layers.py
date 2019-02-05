@@ -6,6 +6,8 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.nn import Parameter as P
 
+from sync_batchnorm import SynchronizedBatchNorm2d as SyncBatchNorm2d
+
 # Projection of x onto y
 def proj(x, y):
   return torch.mm(y, x.t()) * y / torch.mm(y, y.t())
