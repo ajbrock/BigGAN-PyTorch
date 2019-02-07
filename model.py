@@ -10,12 +10,12 @@ import torch.nn.functional as F
 from torch.nn import Parameter as P
 
 import layers
-from sync_batchnorm import SynchronizedBatchNorm2d as BatchNorm2d
+from sync_batchnorm import SynchronizedBatchNorm2d as SyncBatchNorm2d
 
 
 # Architectures for G
-# New strategy: pass in attention values as G_attn='64_128' then
-# attention[int(item)] = True for item in G_attn.split('_')
+# Attention is passed in in the format '32_64' to mean applying an attention
+# block at both resolution 32x32 and 64x64. Just '64' will apply at 64x64.
 def G_arch(ch=64, attention='64', ksize='333333', dilation='111111'):
   arch = {}
   arch[256] = {'in_channels' :  [ch * item for item in [16, 16, 8, 8, 4, 2]],
@@ -50,11 +50,11 @@ class Generator(nn.Module):
                G_kernel_size=3, G_attn='64', n_classes=1000,
                num_G_SVs=1, num_G_SV_itrs=1,
                G_shared=True, shared_dim=None, hier=False,
-               cross_replica=False,
+               cross_replica=False, mybn=False,
                G_activation=nn.ReLU(inplace=False),
                G_lr=5e-5, G_B1=0.0, G_B2=0.999, adam_eps=1e-8,
                BN_eps=1e-5, SN_eps=1e-12, G_mixed_precision=False, G_fp16=False,
-               G_init='ortho', G_param='SN', norm_style='bn',
+               G_init='ortho', skip_init=False, G_param='SN', norm_style='bn',
                **kwargs):
     super(Generator, self).__init__()
     # Channel width mulitplier
@@ -79,6 +79,8 @@ class Generator(nn.Module):
     self.hier = hier
     # Cross replica batchnorm?
     self.cross_replica = cross_replica
+    # Use my batchnorm?
+    self.mybn = mybn
     # nonlinearity for residual blocks
     self.activation = G_activation
     # Initialization style
@@ -112,24 +114,18 @@ class Generator(nn.Module):
                           num_svs=num_G_SVs, num_itrs=num_G_SV_itrs, eps=self.SN_eps)
       self.which_linear = functools.partial(layers.SNLinear,
                           num_svs=num_G_SVs, num_itrs=num_G_SV_itrs, eps=self.SN_eps)
-      self.which_embedding = nn.Embedding
-      #self.which_embedding = functools.partial(layers.SNEmbedding,
-                              #num_svs=num_G_SVs, num_itrs=num_G_SV_itrs)
-    # PyTorch inbuilt spectral norm? Use lambdas here since functools.partial doesn't quite cut it
-    elif self.G_param == 'PTSN':
-      self.which_conv = lambda *args, **kwargs: nn.utils.spectral_norm(functools.partial(nn.Conv2d, kernel_size=3, padding=1)(*args, **kwargs))
-      self.which_linear = lambda *args, **kwargs: nn.utils.spectral_norm(nn.Linear(*args, **kwargs))
-      self.which_embedding = nn.Embedding
-
     else:
       self.which_conv = functools.partial(nn.Conv2d, kernel_size=3, padding=1)
       self.which_linear = nn.Linear
-      self.which_embedding = nn.Embedding
-
+      
+    # We use a non-spectral-normed embedding here regardless;
+    # For some reason applying SN to G's embedding seems to randomly cripple G
+    self.which_embedding = nn.Embedding
     bn_linear = functools.partial(self.which_linear, bias=False) if self.G_shared else self.which_embedding
     self.which_bn = functools.partial(layers.ccbn,
                           which_linear=bn_linear,
                           cross_replica=self.cross_replica,
+                          mybn=self.mybn,
                           input_size=self.shared_dim + self.z_chunk_size if self.G_shared else self.n_classes,
                           norm_style=self.norm_style,
                           eps=self.BN_eps)
@@ -144,6 +140,7 @@ class Generator(nn.Module):
 
     # self.blocks is a doubly-nested list of modules, the outer loop intended
     # to be over blocks at a given resolution (resblocks and/or self-attention)
+    # while the inner loop is over a given block
     self.blocks = []
     for index in range(len(self.arch['out_channels'])):
       self.blocks += [[layers.GBlock(in_channels=self.arch['in_channels'][index],
@@ -162,17 +159,17 @@ class Generator(nn.Module):
     # Turn self.blocks into a ModuleList so that it's all properly registered.
     self.blocks = nn.ModuleList([nn.ModuleList(block) for block in self.blocks])
 
-    # output layer: batchnorm-relu-conv. Optionally use an nn.BatchNorm2d, or
-    # use a non-spectral conv, by toggling these comments.
+    # output layer: batchnorm-relu-conv.
+    # Consider using a non-spectral conv here
     self.output_layer = nn.Sequential(layers.bn(self.arch['out_channels'][-1],
-                                                cross_replica=self.cross_replica),
-                                    # nn.BatchNorm2d(self.arch['out_channels'][-1] * self.ch,affine=True),
+                                                cross_replica=self.cross_replica,
+                                                mybn=self.mybn),
                                     self.activation,
-                                    #nn.Conv2d(self.arch['out_channels'][-1] * self.ch, 3, 3,padding=1))
-                                    self.which_conv(self.arch['out_channels'][-1], 3)) # Consider using a non-spectral conv here
+                                    self.which_conv(self.arch['out_channels'][-1], 3))
 
-    # Initialize weights
-    self.init_weights()
+    # Initialize weights. Optionally skip init for testing.
+    if not skip_init:
+      self.init_weights()
 
     # Set up optimizer
     self.lr, self.B1, self.B2, self.adam_eps = G_lr, G_B1, G_B2, adam_eps
@@ -193,11 +190,9 @@ class Generator(nn.Module):
 
   # Initialize
   def init_weights(self):
-    # print('Skipping initialization for now...')
     self.param_count = 0
     for module in self.modules():
       if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear) or isinstance(module, nn.Embedding):
-        # pass # Uncomment this to skip init step on convs and linears
         if self.init == 'ortho':
           init.orthogonal_(module.weight)
         elif self.init == 'N02':
@@ -207,16 +202,13 @@ class Generator(nn.Module):
         else:
           print('Init style not recognized...')
         self.param_count += sum([p.data.nelement() for p in module.parameters()])
-      #else:
-        #print(type(module))
     print('Param count for G''s initialized parameters: %d' % self.param_count)
 
-  # Notes on this forward function: we pass in a y vector which has
+  # Note on this forward function: we pass in a y vector which has
   # already been passed through G.shared to enable easy class-wise
   # interpolation later. If we passed in the one-hot and then ran it through
   # G.shared in this forward function, it would be harder to handle.
   def forward(self, z, y):
-
     # If hierarchical, concatenate zs and ys
     if self.hier:
       zs = torch.split(z, self.z_chunk_size, 1)
@@ -224,20 +216,23 @@ class Generator(nn.Module):
       ys = [torch.cat([y, item], 1) for item in zs[1:]]
     else:
       ys = [y] * len(self.blocks)
+      
     # First linear layer
     h = self.linear(z)
     # Reshape
     h = h.view(h.size(0), -1, self.bottom_width, self.bottom_width)
+    
     # Loop over blocks
     for index, blocklist in enumerate(self.blocks):
       # Second inner loop in case block has multiple layers
       for block in blocklist:
         h = block(h, ys[index])
+        
     # Apply batchnorm-relu-conv-tanh at output
     return torch.tanh(self.output_layer(h))
 
 
-# Discriminator
+# Discriminator architecture, same paradigm as G's above
 def D_arch(ch=64, attention='64',ksize='333333', dilation='111111'):
   arch = {}
   arch[256] = {'in_channels' :  [3] + [ch*item for item in [1, 2, 4, 8, 8, 16]],
@@ -272,8 +267,8 @@ class Discriminator(nn.Module):
                D_kernel_size=3, D_attn='64', n_classes=1000,
                num_D_SVs=1, num_D_SV_itrs=1, D_activation=nn.ReLU(inplace=False),
                D_lr=2e-4, D_B1=0.0, D_B2=0.999, adam_eps=1e-8,
-               D_param='SN', SN_eps=1e-12, output_dim=1, D_mixed_precision=False, D_fp16=False,
-               D_init='ortho', **kwargs):
+               SN_eps=1e-12, output_dim=1, D_mixed_precision=False, D_fp16=False,
+               D_init='ortho', skip_init=False, D_param='SN', **kwargs):
     super(Discriminator, self).__init__()
     # Width multiplier
     self.ch = D_ch
@@ -308,13 +303,6 @@ class Discriminator(nn.Module):
                           num_svs=num_D_SVs, num_itrs=num_D_SV_itrs, eps=self.SN_eps)
       self.which_embedding = functools.partial(layers.SNEmbedding,
                               num_svs=num_D_SVs, num_itrs=num_D_SV_itrs, eps=self.SN_eps)
-
-    # PyTorch inbuilt spectral norm? Use lambdas here since functools.partial doesn't quite cut it
-    elif self.D_param == 'PTSN':
-      self.which_conv = lambda *args, **kwargs: nn.utils.spectral_norm(functools.partial(nn.Conv2d, kernel_size=3, padding=1)(*args, **kwargs))
-      self.which_linear = lambda *args, **kwargs: nn.utils.spectral_norm(nn.Linear(*args, **kwargs))
-      self.which_embedding = lambda *args, **kwargs: nn.utils.spectral_norm(nn.Embedding(*args, **kwargs))
-
     # Prepare model
     # self.blocks is a doubly-nested list of modules, the outer loop intended
     # to be over blocks at a given resolution (resblocks and/or self-attention)
@@ -340,7 +328,8 @@ class Discriminator(nn.Module):
     self.embed = self.which_embedding(self.n_classes, self.arch['out_channels'][-1])
 
     # Initialize weights
-    self.init_weights()
+    if not skip_init:
+      self.init_weights()
 
     # Set up optimizer
     self.lr, self.B1, self.B2, self.adam_eps = D_lr, D_B1, D_B2, adam_eps
@@ -358,11 +347,9 @@ class Discriminator(nn.Module):
 
   # Initialize
   def init_weights(self):
-    # print('Skipping initialization for now...')
     self.param_count = 0
     for module in self.modules():
       if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear) or isinstance(module, nn.Embedding):
-        # pass # Uncomment this to skip init step on convs and linears
         if self.init == 'ortho':
           init.orthogonal_(module.weight)
         elif self.init == 'N02':
@@ -372,8 +359,6 @@ class Discriminator(nn.Module):
         else:
           print('Init style not recognized...')
         self.param_count += sum([p.data.nelement() for p in module.parameters()])
-      #else:
-        #print(type(module))
     print('Param count for D''s initialized parameters: %d' % self.param_count)
 
   def forward(self, x, y=None):
@@ -400,8 +385,8 @@ class G_D(nn.Module):
     self.D = D
 
   def forward(self, z, gy, x=None, dy=None, train_G=False, return_G_z=False,
-              split_D=False):
-    # If training G, enable grad
+              split_D=False):              
+    # If training G, enable grad tape
     with torch.set_grad_enabled(train_G):
       # Get Generator output given noise
       G_z = self.G(z, self.G.shared(gy))
@@ -411,7 +396,7 @@ class G_D(nn.Module):
       if self.D.fp16 and not self.G.fp16:
         G_z = G_z.half()
     # Split_D means to run D once with real data and once with fake,
-    # rather than concatenating along the batch dimension
+    # rather than concatenating along the batch dimension.
     if split_D:
       D_fake = self.D(G_z, gy)
       if x is not None:

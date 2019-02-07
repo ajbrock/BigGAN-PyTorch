@@ -202,8 +202,7 @@ def run(config):
   # If parallel, parallelize the GD module
   if config['parallel']:
     GD = nn.DataParallel(GD)
-
-    if config['BN_sync']:
+    if config['BN_sync'] or config['cross_replica']:
       patch_replication_callback(GD)
 
   # Prepare loggers for stats; metrics holds test metrics,
@@ -254,6 +253,10 @@ def run(config):
                          '%s_copy%d' % (experiment_name, state_dict['save_num']),
                          G_ema if config['ema'] else None)
       state_dict['save_num'] = (state_dict['save_num'] + 1 ) % config['num_save_copies']
+      if config['accumulate_stats']:
+        utils.accumulate_stats(G_ema if config['ema'] and config['use_ema'] else G,
+                               z_, y_, config['n_classes'],
+                               config['num_standing_accumulations'])
       # For now, every time we save, also save sample sheets
       utils.sample_sheet(G_ema if config['ema'] and config['use_ema'] else G,
                          classes_per_sheet=utils.classes_per_sheet_dict[config['dataset']],
@@ -267,6 +270,10 @@ def run(config):
   # prepare test function
   def test():
     print('Gathering inception metrics...')
+    if config['accumulate_stats']:
+      utils.accumulate_stats(G_ema if config['ema'] and config['use_ema'] else G,
+                             z_, y_, config['n_classes'],
+                             config['num_standing_accumulations'])
     IS_mean, IS_std, FID = get_inception_metrics(sample, 50000, num_splits=10)
     print('Itr %d: Inception Score is %3.3f +/- %3.3f, FID is %5.4f' % (state_dict['itr'], IS_mean, IS_std, FID))
     # If improved over previous best metric, save approrpiate copy

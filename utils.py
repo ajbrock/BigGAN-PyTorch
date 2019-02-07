@@ -158,6 +158,9 @@ def prepare_parser():
     '--cross_replica', action='store_true', default=False,
     help='Cross_replica batchnorm in G?(default: %(default)s)')
   parser.add_argument(
+    '--mybn', action='store_true', default=False,
+    help='Use my batchnorm (which supports standing stats?) %(default)s)')
+  parser.add_argument(
     '--num_G_accumulations', type=int, default=1,
     help='Number of passes to accumulate G''s gradients over (default: %(default)s)')
   parser.add_argument(
@@ -230,6 +233,9 @@ def prepare_parser():
     '--D_init', type=str, default='ortho',
     help='Init style to use for D(default: %(default)s)')
   parser.add_argument(
+    '--skip_init', action='store_true', default=False,
+    help='Skip initialization, ideal for testing when ortho init was used %(default)s)')
+  parser.add_argument(
     '--G_param', type=str, default='SN',
     help='Parameterization style to use for G, spectral norm (SN) or SVD (SVD)(default: %(default)s)')
   parser.add_argument(
@@ -247,6 +253,12 @@ def prepare_parser():
   parser.add_argument(
     '--norm_style', type=str, default='bn',
     help='Normalizer style for G, one of bn [batchnorm], in [instancenorm], ln [layernorm], gn [groupnorm] (default: %(default)s)')
+  parser.add_argument(
+    '--accumulate_stats', action='store_true', default=False,
+    help='Accumulate "standing" batchnorm stats? (default: %(default)s)')
+  parser.add_argument(
+    '--num_standing_accumulations', type=int, default=16,
+    help='Number of forward passes to use in accumulating standing stats? (default: %(default)s)')
   parser.add_argument(
     '--which_train_fn', type=str, default='GAN',
     help='How2trainyourbois (default: %(default)s)')
@@ -538,7 +550,7 @@ def save_weights(G, D, state_dict, weights_root, experiment_name, G_ema=None):
     torch.save(G_ema.state_dict(), '%s_G_ema.pth' % root)
 
 # Load a model's weights, optimizer, and the state_dict
-def load_weights(G, D, state_dict, weights_root, experiment_name, G_ema=None):
+def load_weights(G, D, state_dict, weights_root, experiment_name, G_ema=None, strict=True):
   root = '/'.join([weights_root, experiment_name])
   print('Loading weights from %s...' % root )
   if G is not None:
@@ -551,7 +563,7 @@ def load_weights(G, D, state_dict, weights_root, experiment_name, G_ema=None):
   for item in state_dict:
     state_dict[item] = torch.load('%s_state_dict.pth' % root)[item]
   if G_ema is not None:
-    G_ema.load_state_dict(torch.load('%s_G_ema.pth' % root))
+    G_ema.load_state_dict(torch.load('%s_G_ema.pth' % root), strict=strict)
 
 ''' MetricsLogger originally stolen from VoxNet source code.
     Used for logging inception metrics'''
@@ -840,6 +852,24 @@ def prepare_z_y(G_batch_size, dim_z, nclasses, device='cuda', fp16=False):
 
 import math
 from torch.optim.optimizer import Optimizer
+
+def initiate_standing_stats(net):
+  for module in net.modules():
+    if hasattr(module, 'accumulate_standing'):
+      module.reset_stats()
+      module.accumulate_standing = True
+      
+def accumulate_standing_stats(net, z, y, nclasses, num_accumulations=16):
+  initiate_standing_stats(net)
+  net.train()
+  for i in range(num_accumulations):
+    with torch.no_grad():
+      z.normal_()
+      y.random_(0, nclasses)
+      x = net(z, net.shared(y)) # No need to parallelize here unless using syncbn
+  # Set to eval mode
+  net.eval() 
+      
 
 # This version of Adam keeps an fp32 copy of the parameters and
 # does all of the parameter updates in fp32, while still doing the

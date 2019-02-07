@@ -46,15 +46,14 @@ def run(config):
   G = model.Generator(**config).cuda()
   print('Number of params in G: {}'.format(
     sum([p.data.nelement() for p in G.parameters()])))
-  if config['ema']:
-    print('Preparing EMA for G with decay of {}'.format(config['ema_decay']))
-    G_ema = model.Generator(**config).cuda()
   # Load weights
   
-  print('Loading weights...')  
-  utils.load_weights(G, None, state_dict, 
+  print('Loading weights...')
+  # Here is where we deal with the ema--load ema weights or load normal weights
+  utils.load_weights(G if not (config['use_ema']) else None, None, state_dict, 
                      config['weights_root'], experiment_name,
-                     G_ema if config['ema'] else None)
+                     G if config['ema'] and config['use_ema'] else None,
+                     strict=False)
   # Update batch size setting used for G
   G_batch_size = max(config['G_batch_size'], config['batch_size']) 
   z_ = torch.randn(G_batch_size, G.dim_z, requires_grad=False).cuda()
@@ -62,15 +61,19 @@ def run(config):
                      size=(G_batch_size,), device='cuda', 
                      dtype=torch.int64, requires_grad=False)
   
-  if config['ema'] and config['use_ema']:
-    G = G_ema
-  
   if config['G_eval_mode']:
+    print('Putting G in eval mode..')
     G.eval()
-  
+  else:
+    print('G is in %s mode...' % ('training' if G.training else 'eval'))
     
   #Sample function
   sample = functools.partial(utils.sample, G=G, z_=z_, y_=y_, config=config)  
+  if config['accumulate_stats']:
+    print('Accumulating standing stats across %d accumulations...' % config['num_standing_accumulations'])
+    utils.accumulate_standing_stats(G, z_, y_, config['n_classes'],
+                                    config['num_standing_accumulations'])
+    
   
   # Sample a number of images and save them to an NPZ, for use with TF-Inception
   if config['sample_npz']:
