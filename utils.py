@@ -537,33 +537,49 @@ def toggle_grad(model, on_or_off):
     param.requires_grad = on_or_off
 
 
+# Function to join strings or ignore them
+# Base string is the string to link "strings," while strings
+# is a list of strings or Nones.
+def join_strings(base_string, strings):
+  return base_string.join([item for item in strings if item])
+
+
 # Save a model's weights, optimizer, and the state_dict
-def save_weights(G, D, state_dict, weights_root, experiment_name, G_ema=None):
+def save_weights(G, D, state_dict, weights_root, experiment_name, name_prefix=None, G_ema=None,):
   root = '/'.join([weights_root, experiment_name])
-  print('Saving weights to %s...' % root)
-  torch.save(G.state_dict(), '%s_G.pth' % root)
-  torch.save(G.optim.state_dict(), '%s_G_optim.pth' % root)
-  torch.save(D.state_dict(), '%s_D.pth' % root)
-  torch.save(D.optim.state_dict(), '%s_D_optim.pth' % root)
-  torch.save(state_dict, '%s_state_dict.pth' % root)
+  if not os.path.exists(root):
+    os.mkdir(root)
+  if name_prefix:
+    print('Saving weights to %s/%s...' % (root, name_prefix))
+  else:
+    print('Saving weights to %s...' % root)
+  torch.save(G.state_dict(), '%s/%s.pth' % (root, join_strings('_', ['G', name_prefix])))
+  torch.save(G.optim.state_dict(), '%s/%s.pth' % (root, join_strings('_', ['G_optim', name_prefix])))
+  torch.save(D.state_dict(), '%s/%s.pth' % (root, join_strings('_', ['D', name_prefix])))
+  torch.save(D.optim.state_dict(), '%s/%s.pth' % (root, join_strings('_', ['D_optim', name_prefix])))
+  torch.save(state_dict, '%s/%s.pth' % (root, join_strings('_', ['state_dict', name_prefix])))
   if G_ema is not None:
-    torch.save(G_ema.state_dict(), '%s_G_ema.pth' % root)
+    torch.save(G_ema.state_dict(), '%s/%s.pth' % (root, join_strings('_', ['G_ema', name_prefix])))
+
 
 # Load a model's weights, optimizer, and the state_dict
-def load_weights(G, D, state_dict, weights_root, experiment_name, G_ema=None, strict=True):
+def load_weights(G, D, state_dict, weights_root, experiment_name, name_prefix=None, G_ema=None, strict=True):
   root = '/'.join([weights_root, experiment_name])
-  print('Loading weights from %s...' % root )
+  if name_prefix:
+    print('Loading weights from %s/%s...' % (root, name_prefix))
+  else:
+    print('Loading weights from %s...' % root)
   if G is not None:
-    G.load_state_dict(torch.load('%s_G.pth' % root))
-    G.optim.load_state_dict(torch.load('%s_G_optim.pth' % root))
+    G.load_state_dict(torch.load('%s/%s.pth' % (root, join_strings('_', ['G', name_prefix]))))
+    G.optim.load_state_dict(torch.load('%s/%s.pth' % (root, join_strings('_', ['G_optim', name_prefix]))))
   if D is not None:
-    D.load_state_dict(torch.load('%s_D.pth' % root))
-    D.optim.load_state_dict(torch.load('%s_D_optim.pth' % root))
+    D.load_state_dict(torch.load('%s/%s.pth' % (root, join_strings('_', ['D', name_prefix]))))
+    D.optim.load_state_dict(torch.load('%s/%s.pth' % (root, join_strings('_', ['D_optim', name_prefix]))))
   # Load state dict
   for item in state_dict:
-    state_dict[item] = torch.load('%s_state_dict.pth' % root)[item]
+    state_dict[item] = torch.load('%s/%s.pth' % (root, join_strings('_', ['state_dict', name_prefix])))[item]
   if G_ema is not None:
-    G_ema.load_state_dict(torch.load('%s_G_ema.pth' % root), strict=strict)
+    G_ema.load_state_dict(torch.load('%s/%s.pth' % (root, join_strings('_', ['G_ema', name_prefix]))), strict=strict)
 
 ''' MetricsLogger originally stolen from VoxNet source code.
     Used for logging inception metrics'''

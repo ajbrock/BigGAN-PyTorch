@@ -163,10 +163,8 @@ def run(config):
   # Next, build the model
   G = model.Generator(**config).cuda()
   D = model.Discriminator(**config).cuda()
-  #if config['fp16']:
-    # print('Casting G and D to float16...')
-    # G, D = G.half(), D.half()
-    #print('Actually, only casting G to float16')
+  
+  # FP16?
   if config['G_fp16']:
     print('Casting G to float16...')
     G = G.half()
@@ -196,7 +194,7 @@ def run(config):
   if config['load_weights']:
     print('Loading weights...')
     utils.load_weights(G, D, state_dict,
-                       config['weights_root'], experiment_name,
+                       config['weights_root'], experiment_name, None, # make this 'load_weights' instead
                        G_ema if config['ema'] else None)
 
   # If parallel, parallelize the GD module
@@ -229,10 +227,6 @@ def run(config):
   # Allow for different batch sizes in G
   G_batch_size = max(config['G_batch_size'], config['batch_size'])
   z_, y_ = utils.prepare_z_y(G_batch_size, G.dim_z, config['n_classes'], device='cuda', fp16=config['G_fp16'])
-  # z_ = torch.randn(G_batch_size, G.dim_z, requires_grad=False).cuda()
-  # y_ = torch.randint(low=0, high=config['n_classes'],
-                     # size=(G_batch_size,), device='cuda',
-                     # dtype=torch.int64, requires_grad=False)
 
   # Loaders are loaded, prepare the training function
   if config['which_train_fn'] == 'GAN':
@@ -244,13 +238,13 @@ def run(config):
   # Prepare save and sample function
   def save_and_sample():
     utils.save_weights(G, D, state_dict, config['weights_root'],
-                           experiment_name,
-                           G_ema if config['ema'] else None)
+                       experiment_name, None, G_ema if config['ema'] else None)
     # Save an additional copy to mitigate accidental corruption if process
     # is killed during a save (it's happened to me before -.-)
     if config['num_save_copies'] > 0:
       utils.save_weights(G, D, state_dict, config['weights_root'],
-                         '%s_copy%d' % (experiment_name, state_dict['save_num']),
+                         experiment_name,
+                         'copy%d' %  state_dict['save_num'],
                          G_ema if config['ema'] else None)
       state_dict['save_num'] = (state_dict['save_num'] + 1 ) % config['num_save_copies']
       if config['accumulate_stats']:
@@ -281,7 +275,7 @@ def run(config):
       or (config['which_best'] == 'FID' and FID < state_dict['best_FID'])):
       print('%s improved over previous best, saving checkpoint...' % config['which_best'])
       utils.save_weights(G, D, state_dict, config['weights_root'],
-                         '%s_best%d' % (experiment_name, state_dict['save_best_num']),
+                         experiment_name, 'best%d' % state_dict['save_best_num'],
                          G_ema if config['ema'] else None)
       state_dict['save_best_num'] = (state_dict['save_best_num'] + 1 ) % config['num_best_copies']
     state_dict['best_IS'] = max(state_dict['best_IS'], IS_mean)
@@ -289,7 +283,7 @@ def run(config):
     # Log results to file
     test_log.log(itr=int(state_dict['itr']), IS_mean=float(IS_mean), IS_std=float(IS_std), FID=float(FID))
 
-  print('Beginning training...')
+  print('Beginning training at epoch %d...' % state_dict['epoch'])
   # Train for specified number of epochs, although we mostly track G iterations.
   for epoch in range(state_dict['epoch'], config['num_epochs']):
     # Increment epoch counter
