@@ -428,7 +428,9 @@ class DBlock(nn.Module):
     
   def forward(self, x):
     if self.preactivation:
-      h = self.activation(x)
+      # h = self.activation(x) # NOT TODAY SATAN
+      # Andy's note: This line *must* be an out-of-place ReLU or it will affect the shortcut connection.
+      h = F.relu(x)
     else:
       h = x    
     h = self.conv1(h)
