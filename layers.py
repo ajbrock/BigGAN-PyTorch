@@ -225,7 +225,7 @@ class myBN(nn.Module):
       # If not accumulating standing stats, take running averages
       else:
         self.stored_mean[:] = self.stored_mean * (1 - self.momentum) + mean * self.momentum
-        self.stored_var[:] = self.stored_mean * (1 - self.momentum) + var * self.momentum
+        self.stored_var[:] = self.stored_var * (1 - self.momentum) + var * self.momentum
       return out
     # If not in training mode, don't update stats
     else:         
@@ -429,7 +429,8 @@ class DBlock(nn.Module):
   def forward(self, x):
     if self.preactivation:
       # h = self.activation(x) # NOT TODAY SATAN
-      # Andy's note: This line *must* be an out-of-place ReLU or it will affect the shortcut connection.
+      # Andy's note: This line *must* be an out-of-place ReLU or it 
+      #              will negatively affect the shortcut connection.
       h = F.relu(x)
     else:
       h = x    
