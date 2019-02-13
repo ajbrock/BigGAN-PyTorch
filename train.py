@@ -1,5 +1,5 @@
 """ BigGAN: The Authorized Unofficial PyTorch release
-    A. Brock
+    Code by A. Brock and A. Andonian
     This code is an unofficial reimplementation of
     "Large-Scale GAN Training for High Fidelity Natural Image Synthesis,"
     by A. Brock, J. Donahue, and K. Simonyan (arXiv 1809.11096).
@@ -28,74 +28,14 @@
     Let's go.
 """
 
-# To-do: optionally rewrite inception metrics to use a single
-#        pool and logits array which gets rewritten as opposed to
-#        relying on garbage collection to free up the memory.
-# +Add standing stats aggregation
-# -Write and test EMA
-# -Write and test efficient orthogonality
-# -Write logging functionality for SVs in a better way than we used to havew
-# -Now that we have abunch of tests in test.py, why not wrap them up into
-# proper little unit tests? Be explicit in the printout about what it is they
-# test (and what they don't)
-# -test gradient accumulation things; specifically, can we rescale the loss
-#  instead of having to mess with LRs
-# -write standing stats
-# -get this running on CIFAR first
-# -nah, get it running SAGAN first
-# -Consider a more in-depth experiment management system with names to allow
-#  for easy loading/saving, multiple models, etc.
-# -add experiment identifier string--that way we can run multiple experiments
-# with the same setting (including seed) and still tell them apart.
-# -resolve --ema vs --use_ema options
-# -write simple code to port from TF-hub weights to pytorch model, then ensure
-#  that it produces the same outputs (write a series of unit tests basically and
-#  just compare outputs from one versus the other.
-# -add G and D loss stats somewhere (an events file? a csv?) that gets dumped,
-#  and output them to the progress bar's postfix
-# -figure out if it's the double-batch in D that's taking up so much memory
-# or if it's something else. What if we remove all relus and replace them with
-# identity function? What's the memory consumption dealio here?
-# -write tests for Dct, iDCT, color conversion
-# -rewrite to have it be "norm" layer and just specify the norm type for G
-# -add init type option?
-# -consider changing the downsampling patterns on the CIFAR D
-# -test out if spectral norm is actually being used by loading a weightsfile and
-#  writing a test for it
-# -make sure random seeds are actually being used
-# -cudnn.benchmark!
-# -simple test: make SN optional in D and G, train without, compare to training with
-# -improve progress bar options
-# -write code to produce sample .npzs, maybe a "sample.py" script.
-# is the issue just that we're using BN in training mode?
-# -write SVD parameterization code, paying special attention to column vs row orthogonality
-# -write code to log full spectra from the SVD params, and code to load, plot individual SVs, and animate spectra
-# -Write parser for filenames that takes in a filename and prints out
-# something like "This is model X with G width of X, [attention at X resolutions]/no attention..."
-# -test ycbcr by getting the RGB representation of each color channel?
-# -Note that when running on DCT dataset we need inception metrics still...
-# -Robustify logs to accept arbitrary metrics
-# Idea: write a hash (like gfycat) to assign a random adjective-animal-verb name
-# to each experiment
+
+
 
 # Instructions: first, accumulate inception metrics for your chosen dataset by
 # running python calculate_inception_moments.py. This will use the default PyTorch
 # inception model to compute the IS of your training data (by default
 # ImageNet @ 128x128 pixels) and the feature moments needed for FID.
 
-# Random notes: interp_17 in zipem is good
-
-# -either specify base batch size + num accumulations or overall batch size and num accumulations?
-# is_train = False
-# >>> with torch.set_grad_enabled(is_train):
-# ...     y = x * 2
-# >>> y.requires_grad
-# False
-
-# Idea:
-# let accumulated means and vars hang around in cross-rep bns and don't worry about it
-# accumulations make things weird
-#
 
 # Design notes: In this code I pass around the full config dict a lot by
 # matching up kwargs in the functions they're used in. This slightly reduces
@@ -117,6 +57,7 @@ from torch.nn import init
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.nn import Parameter as P
+import torchvision
 
 # Import my stuff
 import inception_utils
@@ -124,12 +65,6 @@ import utils
 import losses
 import train_fns
 from sync_batchnorm import patch_replication_callback
-
-#config: model, load_weights, ema, ema_decays, num_inception_images, inception_batchsize,
-# dataset
-# EITHER batch_size + num_accumulations OR overall_batch_size + num_accumulations
-# seed for inits
-
 
 # The main training file. Config is a dictionary specifying the configuration
 # of this training run.
@@ -144,8 +79,12 @@ def run(config):
   config['n_classes'] = utils.nclass_dict[config['dataset']]
   config['G_activation'] = utils.activation_dict[config['G_nl']]
   config['D_activation'] = utils.activation_dict[config['D_nl']]
+  # By default, skip init if resuming training.
+  if config['resume']:
+    config['skip_init'] = True
   config = utils.update_config_roots(config)
-
+  device = 'cuda'
+  
   # Seed RNG
   utils.seed_rng(config['seed'])
 
@@ -161,8 +100,8 @@ def run(config):
   print('Experiment name is %s' % experiment_name)
 
   # Next, build the model
-  G = model.Generator(**config).cuda()
-  D = model.Discriminator(**config).cuda()
+  G = model.Generator(**config).to(device)
+  D = model.Discriminator(**config).to(device)
   
   # FP16?
   if config['G_fp16']:
@@ -181,7 +120,7 @@ def run(config):
   # If using EMA, prepare it
   if config['ema']:
     print('Preparing EMA for G with decay of {}'.format(config['ema_decay']))
-    G_ema = model.Generator(**config).cuda()
+    G_ema = model.Generator(**{**config, 'skip_init':True}).to(device)
     ema = utils.ema(G, G_ema, config['ema_decay'], config['ema_start'])
   else:
     ema = None
@@ -191,10 +130,11 @@ def run(config):
                 'best_IS': 0, 'best_FID': 999999, 'config': config}
 
   # If loading from a pre-trained model, load weights
-  if config['load_weights']:
+  if config['resume']:
     print('Loading weights...')
     utils.load_weights(G, D, state_dict,
-                       config['weights_root'], experiment_name, None, # make this 'load_weights' instead
+                       config['weights_root'], experiment_name, 
+                       config['load_weights'] if config['load_weights'] else None,
                        G_ema if config['ema'] else None)
 
   # If parallel, parallelize the GD module
@@ -205,19 +145,23 @@ def run(config):
 
   # Prepare loggers for stats; metrics holds test metrics,
   # lmetrics holds any desired training metrics.
-  test_metrics_fname = '%s/%s_log.jsonl' % (config['logs_root'], experiment_name)
+  test_metrics_fname = '%s/%s_log.jsonl' % (config['logs_root'],
+                                            experiment_name)
   train_metrics_fname = '%s/%s' % (config['logs_root'], experiment_name)
   print('Inception Metrics will be saved to {}'.format(test_metrics_fname))
-  test_log = utils.MetricsLogger(test_metrics_fname, reinitialize=(not config['resume']))
+  test_log = utils.MetricsLogger(test_metrics_fname, 
+                                 reinitialize=(not config['resume']))
   print('Training Metrics will be saved to {}'.format(train_metrics_fname))
-  train_log = utils.MyLogger(train_metrics_fname, reinitialize=(not config['resume']), logstyle=config['logstyle'])
-
+  train_log = utils.MyLogger(train_metrics_fname, 
+                             reinitialize=(not config['resume']),
+                             logstyle=config['logstyle'])
 
   # Prepare data; the Discriminator's batch size is all that needs to be passed
   # to the dataloader, as G doesn't require dataloading.
   # Note that at every loader iteration we pass in enough data to complete
   # a full D iteration (regardless of number of D steps and accumulations)
-  D_batch_size = config['batch_size'] * config['num_D_steps'] * config['num_D_accumulations']
+  D_batch_size = (config['batch_size'] * config['num_D_steps']
+                  * config['num_D_accumulations'])
   loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size})
 
   # Prepare inception metrics: FID and IS
@@ -226,62 +170,22 @@ def run(config):
   # Prepare noise and randomly sampled label arrays
   # Allow for different batch sizes in G
   G_batch_size = max(config['G_batch_size'], config['batch_size'])
-  z_, y_ = utils.prepare_z_y(G_batch_size, G.dim_z, config['n_classes'], device='cuda', fp16=config['G_fp16'])
+  z_, y_ = utils.prepare_z_y(G_batch_size, G.dim_z, config['n_classes'],
+                             device=device, fp16=config['G_fp16'])
+  # Prepare a fixed z & y to see individual sample evolution throghout training
+  fixed_z, fixed_y = utils.prepare_z_y(G_batch_size, G.dim_z,
+                                       config['n_classes'], device=device,
+                                       fp16=config['G_fp16'])  
 
   # Loaders are loaded, prepare the training function
   if config['which_train_fn'] == 'GAN':
-    train = train_fns.GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config)
+    train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
+                                            ema, state_dict, config)
   # Prepare Sample function for use with inception metrics
-  sample = functools.partial(utils.sample, G=G_ema if config['ema'] and config['use_ema'] else G,
-                             z_=z_, y_=y_, config=config)
-
-  # Prepare save and sample function
-  def save_and_sample():
-    utils.save_weights(G, D, state_dict, config['weights_root'],
-                       experiment_name, None, G_ema if config['ema'] else None)
-    # Save an additional copy to mitigate accidental corruption if process
-    # is killed during a save (it's happened to me before -.-)
-    if config['num_save_copies'] > 0:
-      utils.save_weights(G, D, state_dict, config['weights_root'],
-                         experiment_name,
-                         'copy%d' %  state_dict['save_num'],
-                         G_ema if config['ema'] else None)
-      state_dict['save_num'] = (state_dict['save_num'] + 1 ) % config['num_save_copies']
-      if config['accumulate_stats']:
-        utils.accumulate_stats(G_ema if config['ema'] and config['use_ema'] else G,
-                               z_, y_, config['n_classes'],
-                               config['num_standing_accumulations'])
-      # For now, every time we save, also save sample sheets
-      utils.sample_sheet(G_ema if config['ema'] and config['use_ema'] else G,
-                         classes_per_sheet=utils.classes_per_sheet_dict[config['dataset']],
-                         num_classes=config['n_classes'],
-                         samples_per_class=10, parallel=config['parallel'],
-                         samples_root=config['samples_root'],
-                         experiment_name=experiment_name,
-                         folder_number=state_dict['itr'],
-                         z_=z_)
-
-  # prepare test function
-  def test():
-    print('Gathering inception metrics...')
-    if config['accumulate_stats']:
-      utils.accumulate_stats(G_ema if config['ema'] and config['use_ema'] else G,
-                             z_, y_, config['n_classes'],
-                             config['num_standing_accumulations'])
-    IS_mean, IS_std, FID = get_inception_metrics(sample, 50000, num_splits=10)
-    print('Itr %d: Inception Score is %3.3f +/- %3.3f, FID is %5.4f' % (state_dict['itr'], IS_mean, IS_std, FID))
-    # If improved over previous best metric, save approrpiate copy
-    if ((config['which_best'] == 'IS' and IS_mean > state_dict['best_IS'])
-      or (config['which_best'] == 'FID' and FID < state_dict['best_FID'])):
-      print('%s improved over previous best, saving checkpoint...' % config['which_best'])
-      utils.save_weights(G, D, state_dict, config['weights_root'],
-                         experiment_name, 'best%d' % state_dict['save_best_num'],
-                         G_ema if config['ema'] else None)
-      state_dict['save_best_num'] = (state_dict['save_best_num'] + 1 ) % config['num_best_copies']
-    state_dict['best_IS'] = max(state_dict['best_IS'], IS_mean)
-    state_dict['best_FID'] = min(state_dict['best_FID'], FID)
-    # Log results to file
-    test_log.log(itr=int(state_dict['itr']), IS_mean=float(IS_mean), IS_std=float(IS_std), FID=float(FID))
+  sample = functools.partial(utils.sample,
+                              G=(G_ema if config['ema'] and config['use_ema']
+                                 else G),
+                              z_=z_, y_=y_, config=config)
 
   print('Beginning training at epoch %d...' % state_dict['epoch'])
   # Train for specified number of epochs, although we mostly track G iterations.
@@ -303,20 +207,22 @@ def run(config):
       if config['ema']:
         G_ema.train()
       if config['D_fp16']:
-        x, y = x.cuda().half(), y.cuda()
+        x, y = x.to(device).half(), y.to(device)
       else:
-        x, y = x.cuda(), y.cuda()
+        x, y = x.to(device), y.to(device)
       metrics = train(x, y)
       train_log.log(itr=int(state_dict['itr']), **metrics)
-
+      
+      # Every sv_log_interval, log singular values
       if (config['sv_log_interval'] > 0) and (not (state_dict['itr'] % config['sv_log_interval'])):
-        train_log.log(itr=int(state_dict['itr']), **{**utils.get_SVs(G, 'G'), **utils.get_SVs(D, 'D')})
+        train_log.log(itr=int(state_dict['itr']), 
+                      **{**utils.get_SVs(G, 'G'), **utils.get_SVs(D, 'D')})
 
       # If using my progbar, print metrics.
-      #Could also do this for TQDM using set_postfix.
-      if config['pbar'] == 'mine':# and time.time() - t_last > min_delay:
-          print(', '.join(['itr: %d' % state_dict['itr']] + ['%s : %+4.3f' % (key, metrics[key]) for key in metrics]), end=' ')
-          #t_last = time.time()
+      if config['pbar'] == 'mine':
+          print(', '.join(['itr: %d' % state_dict['itr']] 
+                           + ['%s : %+4.3f' % (key, metrics[key])
+                           for key in metrics]), end=' ')
 
       # Save weights and copies as configured at specified interval
       if not (state_dict['itr'] % config['save_every']):
@@ -325,14 +231,16 @@ def run(config):
           G.eval()
           if config['ema']:
             G_ema.eval()
-        save_and_sample()
+        train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y, 
+                                  state_dict, config, experiment_name)
 
       # Test every specified interval
       if not (state_dict['itr'] % config['test_every']):
         if config['G_eval_mode']:
           print('Switchin G to eval mode...')
           G.eval()
-        test()
+        train_fns.test(G, D, G_ema, state_dict, config, sample,
+                       get_inception_metrics, experiment_name, test_log)
 
 
 

@@ -159,6 +159,7 @@ class Attention(nn.Module):
     o = self.o(torch.bmm(g, beta.transpose(1,2)).view(-1, self.ch // 2, x.shape[2], x.shape[3]))
     return self.gamma * o + x
 
+
 # Fused batchnorm op
 def fused_bn(x, mean, var, gain=None, bias=None, eps=1e-5):
   # Apply scale and shift--if gain and bias are provided, fuse them here
@@ -173,23 +174,24 @@ def fused_bn(x, mean, var, gain=None, bias=None, eps=1e-5):
   if bias is not None:
     shift = shift - bias
   return x * scale - shift
-  
-  
+  #return ((x - mean) / ((var + eps) ** 0.5)) * gain + bias # The unfused way.
+
+
 # Manual BN
-# Calculate means and variances using mean-of-squares mins mean-squared
+# Calculate means and variances using mean-of-squares minus mean-squared
 def manual_bn(x, gain=None, bias=None, return_mean_var=False, eps=1e-5):
-    # Calculate expected value of x (m) and expected value of x**2 (m2)
-    #num = float(torch.prod(torch.tensor(x.shape)[[0,2,3]]))
-    # Mean of x
-    m = torch.mean(x, [0, 2, 3], keepdim=True)# / num
-    # Mean of x squared
-    m2 = torch.mean(x ** 2, [0, 2, 3], keepdim=True)# / num
-    # Calculate variance as mean of squared minus mean squared.
-    var = m2 - m ** 2
-    if return_mean_var:
-      return fused_bn(x, m, var, gain, bias, eps), m.squeeze(), var.squeeze()
-    else:
-      return fused_bn(x, m, var, gain, bias, eps)
+  # Calculate expected value of x (m) and expected value of x**2 (m2)
+  # Mean of x
+  m = torch.mean(x, [0, 2, 3], keepdim=True)
+  # Mean of x squared
+  m2 = torch.mean(x ** 2, [0, 2, 3], keepdim=True)
+  # Calculate variance as mean of squared minus mean squared.
+  var = (m2 - m **2)
+  # Return mean and variance for updating stored mean/var if requested  
+  if return_mean_var:
+    return fused_bn(x, m, var, gain, bias, eps), m.squeeze(), var.squeeze()
+  else:
+    return fused_bn(x, m, var, gain, bias, eps)
 
 
 # My batchnorm, supports standing stats    
@@ -218,6 +220,7 @@ class myBN(nn.Module):
   def forward(self, x, gain, bias):
     if self.training:
       out, mean, var = manual_bn(x, gain, bias, return_mean_var=True, eps=self.eps)
+      # If accumulating standing stats, increment them
       if self.accumulate_standing:
         self.stored_mean[:] = self.stored_mean + mean.data
         self.stored_var[:] = self.stored_var + var.data
@@ -227,7 +230,7 @@ class myBN(nn.Module):
         self.stored_mean[:] = self.stored_mean * (1 - self.momentum) + mean * self.momentum
         self.stored_var[:] = self.stored_var * (1 - self.momentum) + var * self.momentum
       return out
-    # If not in training mode, don't update stats
+    # If not in training mode, use the stored statistics
     else:         
       mean = self.stored_mean.view(1, -1, 1, 1)
       var = self.stored_var.view(1, -1, 1, 1)

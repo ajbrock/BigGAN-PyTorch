@@ -51,7 +51,7 @@ def run(config):
   print('Loading weights...')
   # Here is where we deal with the ema--load ema weights or load normal weights
   utils.load_weights(G if not (config['use_ema']) else None, None, state_dict, 
-                     config['weights_root'], experiment_name,
+                     config['weights_root'], experiment_name, None,
                      G if config['ema'] and config['use_ema'] else None,
                      strict=False)
   # Update batch size setting used for G
@@ -106,7 +106,10 @@ def run(config):
   if config['sample_random']:
     print('Preparing random sample sheet...')
     images, labels = sample()    
-    torchvision.utils.save_image(images.float(), '%s/%s/random_samples.jpg' % (config['samples_root'], experiment_name), nrow=int(G_batch_size**0.5), normalize=True)
+    torchvision.utils.save_image(images.float(),
+                                 '%s/%s/random_samples.jpg' % (config['samples_root'], experiment_name),
+                                 nrow=int(G_batch_size**0.5),
+                                 normalize=True)
 
   # Get Inception Score and FID
   if config['sample_inception_metrics']:            
@@ -114,7 +117,15 @@ def run(config):
     sample = functools.partial(utils.sample, G=G, z_=z_, y_=y_, config=config)
     print('Calculating Inception metrics...')
     IS_mean, IS_std, FID = get_inception_metrics(sample, 50000, num_splits=10)
-    print('Itr %d: Inception Score is %3.3f +/- %3.3f, FID is %5.4f' % (state_dict['itr'], IS_mean, IS_std, FID))
+    # Prepare output string
+    outstring = 'Using %s weights ' % ('ema' if config['use_ema'] else 'non-ema')
+    outstring += 'in %s mode,' % ('eval' if config['G_eval_mode'] else 'training')
+    if config['accumulate_stats'] or not config['G_eval_mode']:
+      outstring += 'with batch size %d, ' % G_batch_size
+    if config['accumulate_stats']:
+      outstring += 'using %d standing stat accumulations, ' % config['num_standing_accumulations']
+    outstring += 'Itr %d: Inception Score is %3.3f +/- %3.3f, FID is %5.4f' % (state_dict['itr'], IS_mean, IS_std, FID)
+    print(outstring)
     
 def main():
   # parse command line and run    

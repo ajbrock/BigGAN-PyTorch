@@ -49,7 +49,7 @@ class Generator(nn.Module):
   def __init__(self, G_ch=64, dim_z=128, bottom_width=4, resolution=128,
                G_kernel_size=3, G_attn='64', n_classes=1000,
                num_G_SVs=1, num_G_SV_itrs=1,
-               G_shared=True, shared_dim=None, hier=False,
+               G_shared=True, shared_dim=0, hier=False,
                cross_replica=False, mybn=False,
                G_activation=nn.ReLU(inplace=False),
                G_lr=5e-5, G_B1=0.0, G_B2=0.999, adam_eps=1e-8,
@@ -74,7 +74,7 @@ class Generator(nn.Module):
     # Use shared embeddings?
     self.G_shared = G_shared
     # Dimensionality of the shared embedding? Unused if not using G_shared
-    self.shared_dim = shared_dim if shared_dim else dim_z
+    self.shared_dim = shared_dim if shared_dim > 0 else dim_z
     # Hierarchical latent space?
     self.hier = hier
     # Cross replica batchnorm?
@@ -100,9 +100,11 @@ class Generator(nn.Module):
 
     # If using hierarchical latents, adjust z
     if self.hier:
-      self.num_slots = len(self.arch['in_channels']) + 1 # Number of places z slots into
+      # Number of places z slots into
+      self.num_slots = len(self.arch['in_channels']) + 1
       self.z_chunk_size = (self.dim_z // self.num_slots)
-      self.dim_z = self.z_chunk_size *  self.num_slots # Recalculate latent dimensionality for even splitting into chunks
+      # Recalculate latent dimensionality for even splitting into chunks
+      self.dim_z = self.z_chunk_size *  self.num_slots
     else:
       self.num_slots = 1
       self.z_chunk_size = 0
@@ -111,9 +113,11 @@ class Generator(nn.Module):
     if self.G_param == 'SN':
       self.which_conv = functools.partial(layers.SNConv2d,
                           kernel_size=3, padding=1,
-                          num_svs=num_G_SVs, num_itrs=num_G_SV_itrs, eps=self.SN_eps)
+                          num_svs=num_G_SVs, num_itrs=num_G_SV_itrs,
+                          eps=self.SN_eps)
       self.which_linear = functools.partial(layers.SNLinear,
-                          num_svs=num_G_SVs, num_itrs=num_G_SV_itrs, eps=self.SN_eps)
+                          num_svs=num_G_SVs, num_itrs=num_G_SV_itrs,
+                          eps=self.SN_eps)
     else:
       self.which_conv = functools.partial(nn.Conv2d, kernel_size=3, padding=1)
       self.which_linear = nn.Linear
@@ -121,19 +125,22 @@ class Generator(nn.Module):
     # We use a non-spectral-normed embedding here regardless;
     # For some reason applying SN to G's embedding seems to randomly cripple G
     self.which_embedding = nn.Embedding
-    bn_linear = functools.partial(self.which_linear, bias=False) if self.G_shared else self.which_embedding
+    bn_linear = (functools.partial(self.which_linear, bias=False) if self.G_shared
+                 else self.which_embedding)
     self.which_bn = functools.partial(layers.ccbn,
                           which_linear=bn_linear,
                           cross_replica=self.cross_replica,
                           mybn=self.mybn,
-                          input_size=self.shared_dim + self.z_chunk_size if self.G_shared else self.n_classes,
+                          input_size=(self.shared_dim + self.z_chunk_size if self.G_shared
+                                      else self.n_classes),
                           norm_style=self.norm_style,
                           eps=self.BN_eps)
 
 
     # Prepare model
     # If not using shared embeddings, self.shared is just a passthrough
-    self.shared = self.which_embedding(n_classes, self.shared_dim) if G_shared else layers.identity()
+    self.shared = (self.which_embedding(n_classes, self.shared_dim) if G_shared 
+                    else layers.identity())
     # First linear layer
     self.linear = self.which_linear(self.dim_z // self.num_slots,
                                     self.arch['in_channels'][0] * (self.bottom_width **2))
@@ -192,7 +199,9 @@ class Generator(nn.Module):
   def init_weights(self):
     self.param_count = 0
     for module in self.modules():
-      if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear) or isinstance(module, nn.Embedding):
+      if (isinstance(module, nn.Conv2d) 
+          or isinstance(module, nn.Linear) 
+          or isinstance(module, nn.Embedding)):
         if self.init == 'ortho':
           init.orthogonal_(module.weight)
         elif self.init == 'N02':
@@ -263,7 +272,7 @@ def D_arch(ch=64, attention='64',ksize='333333', dilation='111111'):
 
 class Discriminator(nn.Module):
 
-  def __init__(self, D_ch=64, resolution=128,
+  def __init__(self, D_ch=64, D_wide=True, resolution=128,
                D_kernel_size=3, D_attn='64', n_classes=1000,
                num_D_SVs=1, num_D_SV_itrs=1, D_activation=nn.ReLU(inplace=False),
                D_lr=2e-4, D_B1=0.0, D_B2=0.999, adam_eps=1e-8,
@@ -272,6 +281,8 @@ class Discriminator(nn.Module):
     super(Discriminator, self).__init__()
     # Width multiplier
     self.ch = D_ch
+    # Use Wide D as in BigGAN and SA-GAN or skinny D as in SN-GAN?
+    self.D_wide = D_wide
     # Resolution
     self.resolution = resolution
     # Kernel size
@@ -298,11 +309,14 @@ class Discriminator(nn.Module):
     if self.D_param == 'SN':
       self.which_conv = functools.partial(layers.SNConv2d,
                           kernel_size=3, padding=1,
-                          num_svs=num_D_SVs, num_itrs=num_D_SV_itrs, eps=self.SN_eps)
+                          num_svs=num_D_SVs, num_itrs=num_D_SV_itrs,
+                          eps=self.SN_eps)
       self.which_linear = functools.partial(layers.SNLinear,
-                          num_svs=num_D_SVs, num_itrs=num_D_SV_itrs, eps=self.SN_eps)
+                          num_svs=num_D_SVs, num_itrs=num_D_SV_itrs,
+                          eps=self.SN_eps)
       self.which_embedding = functools.partial(layers.SNEmbedding,
-                              num_svs=num_D_SVs, num_itrs=num_D_SV_itrs, eps=self.SN_eps)
+                              num_svs=num_D_SVs, num_itrs=num_D_SV_itrs,
+                              eps=self.SN_eps)
     # Prepare model
     # self.blocks is a doubly-nested list of modules, the outer loop intended
     # to be over blocks at a given resolution (resblocks and/or self-attention)
@@ -311,6 +325,7 @@ class Discriminator(nn.Module):
       self.blocks += [[layers.DBlock(in_channels=self.arch['in_channels'][index],
                        out_channels=self.arch['out_channels'][index],
                        which_conv=self.which_conv,
+                       wide=self.D_wide,
                        activation=self.activation,
                        preactivation=(index > 0),
                        downsample=(nn.AvgPool2d(2) if self.arch['downsample'][index] else None))]]
@@ -349,7 +364,9 @@ class Discriminator(nn.Module):
   def init_weights(self):
     self.param_count = 0
     for module in self.modules():
-      if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear) or isinstance(module, nn.Embedding):
+      if (isinstance(module, nn.Conv2d)
+          or isinstance(module, nn.Linear)
+          or isinstance(module, nn.Embedding)):
         if self.init == 'ortho':
           init.orthogonal_(module.weight)
         elif self.init == 'N02':
