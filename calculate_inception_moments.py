@@ -17,7 +17,10 @@ def prepare_parser():
   parser.add_argument(
     '--dataset', type=str, default='I128',
     help='Which Dataset to train on, out of I128, I256, C10, C100...'
-         'Append _hdf5 to use the hdf5 version of the dataset. (default: %(default)s)') 
+         'Append _hdf5 to use the hdf5 version of the dataset. (default: %(default)s)')
+  parser.add_argument(
+    '--dataset_root', type=str, default='/home/s1580274/scratch/data/',
+    help='Default location where data is stored (default: %(default)s)') 
   parser.add_argument(
     '--batch_size', type=int, default=64,
     help='Default overall batchsize (default: %(default)s)')
@@ -58,7 +61,8 @@ def run(config):
   pool, logits, labels = [np.concatenate(item, 0) for item in [pool, logits, labels]]
   # uncomment to save pool, logits, and labels to disk
   # print('Saving pool, logits, and labels to disk...')
-  # np.savez(config['dataset']+'_inception_activations.npz', {'pool': pool, 'logits': logits, 'labels': labels})
+  # np.savez(config['dataset']+'_inception_activations.npz',
+  #           {'pool': pool, 'logits': logits, 'labels': labels})
   # Calculate inception metrics and report them
   print('Calculating inception metrics...')
   IS_mean, IS_std = inception_utils.calculate_inception_score(logits)
@@ -75,8 +79,6 @@ def main():
   config = vars(parser.parse_args())
   print(config)
   run(config)
-  # run; replace this with a for loop to run multiple sequential jobs.
-  # train_test(**vars(args))
 
 
 if __name__ == '__main__':    

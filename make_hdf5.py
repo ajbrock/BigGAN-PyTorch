@@ -22,7 +22,7 @@ def prepare_parser():
   usage = 'Parser for ImageNet HDF5 scripts.'
   parser = ArgumentParser(description=usage)
   parser.add_argument(
-    '--dataset', type=str, default='I64',
+    '--dataset', type=str, default='I128',
     help='Which Dataset to train on, out of I128, I256, C10, C100;'
          'Append "_hdf5" to use the hdf5 version for ISLVRC (default: %(default)s)')
   parser.add_argument(
@@ -40,14 +40,14 @@ def prepare_parser():
   parser.add_argument(
     '--compression', action='store_true', default=False,
     help='Use LZF compression? (default: %(default)s)')
-  
-    
-  '/home/s1580274/scratch/data/'
   return parser
 
 
 def run(config):
-
+  if 'hdf5' in config['dataset']:
+    raise ValueError('Reading from an HDF5 file which you will probably be '
+                     'about to overwrite! Override this error only if you know '
+                     'what you''re doing!')
   # Get image size
   config['image_size'] = utils.imsize_dict[config['dataset']]
 
@@ -59,7 +59,8 @@ def run(config):
   train_loader = utils.get_data_loaders(dataset=config['dataset'],
                                         batch_size=config['batch_size'],
                                         shuffle=False,
-                                        dataset_root = config['dataset_root'], **kwargs)[0]     
+                                        dataset_root=config['dataset_root'],
+                                        **kwargs)[0]     
 
   # HDF5 supports chunking and compression. You may want to experiment 
   # with different chunk sizes to see how it runs on your machines.
@@ -72,9 +73,6 @@ def run(config):
   # auto:(125,1,16,32) / None                         11/s                  61GB        
 
   print('Starting to load %s into an HDF5 file with chunk size %i and compression %s...' % (config['dataset'], config['chunk_size'], config['compression']))
-
-  root = '/home/s1580274/scratch/data/'
-  # root = '/home/abrock/imagenet/'
   # Loop over train loader
   for i,(x,y) in enumerate(tqdm(train_loader)):
     # Stick X into the range [0, 255] since it's coming from the train loader
@@ -83,7 +81,7 @@ def run(config):
     y = y.numpy()
     # If we're on the first batch, prepare the hdf5
     if i==0:
-      with h5.File(root + 'ILSVRC%i.hdf5' % config['image_size'], 'w') as f:
+      with h5.File(config['dataset_root'] + 'ILSVRC%i.hdf5' % config['image_size'], 'w') as f:
         print('Producing dataset of len %d' % len(train_loader.dataset))
         imgs_dset = f.create_dataset('imgs', x.shape,dtype='uint8', maxshape=(len(train_loader.dataset), 3, config['image_size'], config['image_size']),
                                      chunks=(config['chunk_size'], 3, config['image_size'], config['image_size']), compression=config['compression']) 
@@ -94,7 +92,7 @@ def run(config):
         labels_dset[...] = y
     # Else append to the hdf5
     else:
-      with h5.File(root + 'ILSVRC%i.hdf5' % config['image_size'], 'a') as f:
+      with h5.File(config['dataset_root'] + 'ILSVRC%i.hdf5' % config['image_size'], 'a') as f:
         f['imgs'].resize(f['imgs'].shape[0] + x.shape[0], axis=0)
         f['imgs'][-x.shape[0]:] = x
         f['labels'].resize(f['labels'].shape[0] + y.shape[0], axis=0)
