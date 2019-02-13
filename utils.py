@@ -11,6 +11,7 @@ import sys
 import os
 import numpy as np
 import time
+import datetime
 import json
 import pickle
 from argparse import ArgumentParser
@@ -707,6 +708,15 @@ class MyLogger(object):
       else:
         with open('%s/%s.log' % (self.root, arg), 'a') as f:
           f.write('%d: %s\n' % (itr, self.logstyle % kwargs[arg]))
+
+
+# Write some metadata to the logs directory
+def write_metadata(logs_root, experiment_name, config, state_dict):
+  with open(('%s/%s/metalog.txt' % 
+             (logs_root, experiment_name)), 'w') as writefile:
+    writefile.write('datetime: %s\n' % str(datetime.datetime.now()))
+    writefile.write('config: %s\n' % str(config))
+    writefile.write('state: %s\n' %str(state_dict))
 
 
 """

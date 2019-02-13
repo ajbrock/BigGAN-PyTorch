@@ -155,7 +155,8 @@ def run(config):
   train_log = utils.MyLogger(train_metrics_fname, 
                              reinitialize=(not config['resume']),
                              logstyle=config['logstyle'])
-
+  # Write metadata
+  utils.write_metadata(config['logs_root'], experiment_name, config, state_dict)
   # Prepare data; the Discriminator's batch size is all that needs to be passed
   # to the dataloader, as G doesn't require dataloading.
   # Note that at every loader iteration we pass in enough data to complete
