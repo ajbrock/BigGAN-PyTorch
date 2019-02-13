@@ -148,8 +148,7 @@ def accumulate_inception_activations(sample, net, num_inception_images=50000):
       logits += [np.asarray(F.softmax(logits_val, 1).cpu())]
       labels += [np.asarray(labels_val.cpu())]
   return np.concatenate(pool, 0), np.concatenate(logits, 0), np.concatenate(labels, 0)
-  # inception_pool[i * inception_batch_size : (i + 1) * inception_batch_size] = activation.data.cpu().numpy()
-  # inception_predictions[i * inception_batch_size : (i + 1) * inception_batch_size] = y_inception
+
 
 # Load and wrap the Inception model
 def load_inception_net(parallel=False):
@@ -185,5 +184,7 @@ def prepare_inception_metrics(dataset, parallel, no_fid=False):
       print('Calculating means and covariances...')
       mu, sigma = np.mean(pool, axis=0), np.cov(pool, rowvar=False)
       FID = calculate_frechet_distance(mu, sigma, data_mu, data_sigma)
+    # Delete mu, sigma, pool, logits, and labels, just in case
+    del mu, sigma, pool, logits, labels
     return IS_mean, IS_std, FID
   return get_inception_metrics
