@@ -180,13 +180,18 @@ def fused_bn(x, mean, var, gain=None, bias=None, eps=1e-5):
 # Manual BN
 # Calculate means and variances using mean-of-squares minus mean-squared
 def manual_bn(x, gain=None, bias=None, return_mean_var=False, eps=1e-5):
-  # Calculate expected value of x (m) and expected value of x**2 (m2)
+  # Cast x to float32 if necessary
+  float_x = x.float()
+  # Calculate expected value of x (m) and expected value of x**2 (m2)  
   # Mean of x
-  m = torch.mean(x, [0, 2, 3], keepdim=True)
+  m = torch.mean(float_x, [0, 2, 3], keepdim=True)
   # Mean of x squared
-  m2 = torch.mean(x ** 2, [0, 2, 3], keepdim=True)
+  m2 = torch.mean(float_x ** 2, [0, 2, 3], keepdim=True)
   # Calculate variance as mean of squared minus mean squared.
   var = (m2 - m **2)
+  # Cast back to float 16 if necessary
+  var = var.type(x.type())
+  m = m.type(x.type())
   # Return mean and variance for updating stored mean/var if requested  
   if return_mean_var:
     return fused_bn(x, m, var, gain, bias, eps), m.squeeze(), var.squeeze()

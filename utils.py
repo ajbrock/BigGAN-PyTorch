@@ -51,7 +51,11 @@ def prepare_parser():
     help='Shuffle the data (strongly recommended)? (default: %(default)s)')
   parser.add_argument(
     '--load_in_mem', action='store_true', default=False,
-    help='Load all data into memory? default: %(default)s)')
+    help='Load all data into memory? (default: %(default)s)')
+  parser.add_argument(
+    '--use_multiepoch_sampler', action='store_true', default=False,
+    help='Use the multi-epoch sampler for dataloader? (default: %(default)s)')
+  
   
   ### Model stuff ###
   parser.add_argument(
@@ -67,10 +71,10 @@ def prepare_parser():
          ' or None (default: %(default)s)')    
   parser.add_argument(
     '--G_ch', type=int, default=64,
-    help='Channel multiplier for G default: %(default)s)')
+    help='Channel multiplier for G (default: %(default)s)')
   parser.add_argument(
     '--D_ch', type=int, default=64,
-    help='Channel multiplier for D default: %(default)s)')
+    help='Channel multiplier for D (default: %(default)s)')
   parser.add_argument(
     '--D_thin', action='store_false', dest='D_wide', default=True,
     help='Use the SN-GAN channel pattern for D? (default: %(default)s)')
@@ -247,16 +251,20 @@ def prepare_parser():
     help='Default location to store logs (default: %(default)s)')
   parser.add_argument(
     '--samples_root', type=str, default='/home/s1580274/scratch/samples',
-    help='Default location to store samples (default: %(default)s)')
+    help='Default location to store samples (default: %(default)s)')  
+  parser.add_argument(
+    '--pbar', type=str, default='mine',
+    help='Type of progressbar to use; one of "mine" or "tqdm" '
+         '(default: %(default)s)')
   parser.add_argument(
     '--name_suffix', type=str, default='',
     help='Suffix for experiment name for loading weights for sampling '
          '(consider "best0") (default: %(default)s)')
   parser.add_argument(
-    '--pbar', type=str, default='mine',
-    help='Type of progressbar to use; one of "mine" or "tqdm" '
+    '--experiment_name', type=str, default='',
+    help='Optionally override the automatic experiment naming with this arg. '
          '(default: %(default)s)')
-         
+
   ### EMA Stuff ###
   parser.add_argument(
     '--ema', action='store_true', default=False,
@@ -443,10 +451,57 @@ class RandomCropLongEdge(object):
   def __repr__(self):
     return self.__class__.__name__
 
+    
+# multi-epoch Dataset sampler to avoid memory leakage and enable resumption of
+# training from the same sample regardless of if we stop mid-epoch
+class MultiEpochSampler(torch.utils.data.Sampler):
+  r"""Samples elements randomly over multiple epochs
+
+  Arguments:
+      data_source (Dataset): dataset to sample from
+      num_epochs (int) : Number of times to loop over the dataset
+      start_itr (int) : which iteration to begin from
+  """
+
+  def __init__(self, data_source, num_epochs, start_itr=0, batch_size=128):
+    self.data_source = data_source
+    self.num_samples = len(self.data_source)
+    self.num_epochs = num_epochs
+    self.start_itr = start_itr
+    self.batch_size = batch_size
+
+    if not isinstance(self.num_samples, int) or self.num_samples <= 0:
+      raise ValueError("num_samples should be a positive integeral "
+                       "value, but got num_samples={}".format(self.num_samples))
+
+  def __iter__(self):
+    n = len(self.data_source)
+    # Determine number of epochs
+    num_epochs = int(np.ceil((n * self.num_epochs 
+                              - (self.start_itr * self.batch_size)) / float(n)))
+    # Sample all the indices, and then grab the last num_epochs index sets;
+    # This ensures if we're starting at epoch 4, we're still grabbing epoch 4's
+    # indices
+    out = [torch.randperm(n) for epoch in range(self.num_epochs)][-num_epochs:]
+    # Ignore the first start_itr % n indices of the first epoch
+    out[0] = out[0][(self.start_itr * self.batch_size % n):]
+    # if self.replacement:
+      # return iter(torch.randint(high=n, size=(self.num_samples,), dtype=torch.int64).tolist())
+    # return iter(.tolist())
+    output = torch.cat(out).tolist()
+    print('Length dataset output is %d' % len(output))
+    return iter(output)
+
+  def __len__(self):
+    return len(self.data_source) * self.num_epochs - self.start_itr * self.batch_size
+
+
 # Convenience function to centralize all data loaders
 def get_data_loaders(dataset, dataset_root=None, augment=False, batch_size=64, 
                      num_workers=8, shuffle=True, load_in_mem=False, hdf5=False,
-                     pin_memory=True, drop_last=True, **kwargs):
+                     pin_memory=True, drop_last=True, start_itr=0,
+                     num_epochs=500, use_multiepoch_sampler=True,
+                     **kwargs):
 
   # Test which cluster we're on and select a root appropriately
   if dataset_root is None:
@@ -508,11 +563,18 @@ def get_data_loaders(dataset, dataset_root=None, augment=False, batch_size=64,
 
   # Prepare loader; the loaders list is for forward compatibility with
   # using validation / test splits.
-  loaders = []
-  loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory,
-                   'drop_last': drop_last} # Default, drop last incomplete batch
-  train_loader = DataLoader(train_set, batch_size=batch_size,
-                            shuffle=shuffle, **loader_kwargs)
+  loaders = []   
+  if use_multiepoch_sampler:
+    print('Using multiepoch sampler from start_itr %d...' % start_itr)
+    loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory}
+    sampler = MultiEpochSampler(train_set, num_epochs, start_itr, batch_size)
+    train_loader = DataLoader(train_set, batch_size=batch_size,
+                              sampler=sampler, **loader_kwargs)
+  else:
+    loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory,
+                     'drop_last': drop_last} # Default, drop last incomplete batch
+    train_loader = DataLoader(train_set, batch_size=batch_size,
+                              shuffle=shuffle, **loader_kwargs)
   loaders.append(train_loader)
   return loaders
 
@@ -751,7 +813,7 @@ Very basic progress indicator to wrap an iterable in.
 Author: Jan Schlüter
 Andy's adds: time elapsed in addition to ETA.
 """
-def progress(items, desc='', total=None, min_delay=0.1):
+def progress(items, desc='', total=None, min_delay=0.1, displaytype='s1k'):
   """
   Returns a generator over `items`, printing the number and percentage of
   items processed and the estimated remaining processing time before yielding
@@ -768,10 +830,19 @@ def progress(items, desc='', total=None, min_delay=0.1):
       print("\r%s%d/%d (%6.2f%%)" % (
               desc, n+1, total, n / float(total) * 100), end=" ")
       if n > 0:
-        t_done = t_now - t_start
-        t_total = t_done / n * total
-        outlist = list(divmod(t_done, 60)) + list(divmod(t_total - t_done, 60))
-        print("(TE/ETA: %d:%02d / %d:%02d)" % tuple(outlist), end=" ")
+        
+        if displaytype == 's1k': # minutes/seconds for 1000 iters
+          next_1000 = n + (1000 - n%1000)
+          t_done = t_now - t_start
+          t_1k = t_done / n * next_1000
+          outlist = list(divmod(t_done, 60)) + list(divmod(t_1k - t_done, 60))
+          print("(TE/ET1k: %d:%02d / %d:%02d)" % tuple(outlist), end=" ")
+        else:# displaytype == 'eta':
+          t_done = t_now - t_start
+          t_total = t_done / n * total
+          outlist = list(divmod(t_done, 60)) + list(divmod(t_total - t_done, 60))
+          print("(TE/ETA: %d:%02d / %d:%02d)" % tuple(outlist), end=" ")
+          
       sys.stdout.flush()
       t_last = t_now
     yield item
@@ -815,7 +886,7 @@ def sample_sheet(G, classes_per_sheet, num_classes, samples_per_class, parallel,
         else:
           o = G(z_, G.shared(y))
 
-      ims += [o]
+      ims += [o.data.cpu()]
     # This line should properly unroll the images
     out_ims = torch.stack(ims, 1).view(-1, ims[0].shape[1], ims[0].shape[2], 
                                        ims[0].shape[3]).data.float().cpu()
@@ -828,7 +899,7 @@ def sample_sheet(G, classes_per_sheet, num_classes, samples_per_class, parallel,
 
 # Interp function; expects x0 and x1 to be of shape (shape0, 1, rest_of_shape..)
 def interp(x0, x1, num_midpoints):
-  lerp = torch.linspace(0, 1.0, num_midpoints + 2, device='cuda')
+  lerp = torch.linspace(0, 1.0, num_midpoints + 2, device='cuda').to(x0.dtype)
   return ((x0 * (1 - lerp.view(1, -1, 1))) + (x1 * lerp.view(1, -1, 1)))
 
 
@@ -854,11 +925,13 @@ def interp_sheet(G, num_per_sheet, num_midpoints, num_classes, parallel,
                 G.shared(sample_1hot(num_per_sheet, num_classes)).view(num_per_sheet, 1, -1),
                 num_midpoints).view(num_per_sheet * (num_midpoints + 2), -1)
   # Run the net--note that we've already passed through G.shared.
+  if G.fp16:
+    zs = zs.half()
   with torch.no_grad():
     if parallel:
-      out_ims = nn.parallel.data_parallel(G, (zs, ys))
+      out_ims = nn.parallel.data_parallel(G, (zs, ys)).data.cpu()
     else:
-      out_ims = G(zs, ys)
+      out_ims = G(zs, ys).data.cpu()
   interp_style = '' + ('Z' if not fix_z else '') + ('Y' if not fix_y else '')
   image_filename = '%s/%s/%d/interp%s%d.jpg' % (samples_root, experiment_name,
                                                 folder_number, interp_style,
@@ -870,8 +943,8 @@ def interp_sheet(G, num_per_sheet, num_midpoints, num_classes, parallel,
 # Convenience debugging function to print out gradnorms and shape from each layer
 # May need to rewrite this so we can actually see which parameter is which
 def print_grad_norms(net):
-    gradsums = [[float(torch.norm(param.grad).cpu()),
-                 float(torch.norm(param).cpu()), param.shape]
+    gradsums = [[float(torch.norm(param.grad).item()),
+                 float(torch.norm(param).item()), param.shape]
                 for param in net.parameters()]
     order = np.argsort([item[0] for item in gradsums])
     print(['%3.3e,%3.3e, %s' % (gradsums[item_index][0],
@@ -885,7 +958,7 @@ def print_grad_norms(net):
 def get_SVs(net, prefix):
   d = net.state_dict()
   return {('%s_%s' % (prefix, key)).replace('.', '_') :
-            float(d[key].cpu().numpy())
+            float(d[key].item())
             for key in d if 'sv' in key}
 # Name an experiment based on its config
 def name_from_config(config):
@@ -893,6 +966,7 @@ def name_from_config(config):
   item for item in [
   'Big%s' % config['which_train_fn'],
   config['dataset'],
+  config['model'] if config['model'] != 'model' else None,
   'seed%d' % config['seed'],
   'Gch%d' % config['G_ch'],
   'Dch%d' % config['D_ch'],

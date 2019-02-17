@@ -54,7 +54,8 @@ class Generator(nn.Module):
                G_activation=nn.ReLU(inplace=False),
                G_lr=5e-5, G_B1=0.0, G_B2=0.999, adam_eps=1e-8,
                BN_eps=1e-5, SN_eps=1e-12, G_mixed_precision=False, G_fp16=False,
-               G_init='ortho', skip_init=False, G_param='SN', norm_style='bn',
+               G_init='ortho', skip_init=False, no_optim=False,
+               G_param='SN', norm_style='bn',
                **kwargs):
     super(Generator, self).__init__()
     # Channel width mulitplier
@@ -179,6 +180,9 @@ class Generator(nn.Module):
       self.init_weights()
 
     # Set up optimizer
+    # If this is an EMA copy, no need for an optim, so just return now
+    if no_optim:
+      return
     self.lr, self.B1, self.B2, self.adam_eps = G_lr, G_B1, G_B2, adam_eps
     if G_mixed_precision:
       print('Using fp16 adam in G...')

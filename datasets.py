@@ -103,15 +103,16 @@ class ImageFolder(data.Dataset):
   """
 
   def __init__(self, root, transform=None, target_transform=None,
-               loader=default_loader, load_in_mem=False, **kwargs):
+               loader=default_loader, load_in_mem=False, 
+               index_filename='imagenet_imgs.npz', **kwargs):
     classes, class_to_idx = find_classes(root)
-    if os.path.exists('imagenet_imgs.npz'):
-      print('Loading pre-saved ImageNet Index file...')
-      imgs = np.load('imagenet_imgs.npz')['imgs']
+    if os.path.exists(index_filename):
+      print('Loading pre-saved Index file %s...' % index_filename)
+      imgs = np.load(index_filename)['imgs']
     else:
-      print('Generating ImageNet Index file...')
+      print('Generating  Index file %s...' % index_filename)
       imgs = make_dataset(root, class_to_idx)
-      np.savez_compressed('imagenet_imgs.npz', **{'imgs' : imgs})
+      np.savez_compressed(index_filename, **{'imgs' : imgs})
     if len(imgs) == 0:
       raise(RuntimeError("Found 0 images in subfolders of: " + root + "\n"
                            "Supported image extensions are: " + ",".join(IMG_EXTENSIONS)))
@@ -191,7 +192,7 @@ class ILSVRC_HDF5(data.Dataset):
                val_split=0): # last four are dummies
       
     self.root = root
-    self.num_imgs = len(h5.File(root,'r')['labels'])
+    self.num_imgs = len(h5.File(root, 'r')['labels'])
     
     # self.transform = transform
     self.target_transform = target_transform   

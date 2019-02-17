@@ -3,9 +3,15 @@
 import torch
 import torch.nn as nn
 import torchvision
+import os
 
 import utils
 import losses
+
+def dummy_training_function():
+  def train(x, y):
+    return {}
+  return train
 
 def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
   def train(x, y):
@@ -74,9 +80,9 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
       ema.update(state_dict['itr'])
     
     # Return G's loss and the components of D's loss.
-    return {'G_loss': float(G_loss.cpu()), 
-            'D_loss_real': float(D_loss_real.cpu()),
-            'D_loss_fake': float(D_loss_fake.cpu())}
+    return {'G_loss': float(G_loss.item()), 
+            'D_loss_real': float(D_loss_real.item()),
+            'D_loss_fake': float(D_loss_fake.item())}
   return train
   
 # Prepare save and sample function
@@ -108,10 +114,12 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
       fixed_Gz =  nn.parallel.data_parallel(which_G, (fixed_z, which_G.shared(fixed_y)))
     else:
       fixed_Gz = which_G(fixed_z, which_G.shared(fixed_y))
+  if not os.path.isdir('%s/%s' % (config['samples_root'], experiment_name)):
+    os.mkdir('%s/%s' % (config['samples_root'], experiment_name))
   image_filename = '%s/%s/fixed_samples%d.jpg' % (config['samples_root'], 
                                                   experiment_name,
                                                   state_dict['itr'])
-  torchvision.utils.save_image(fixed_Gz.cpu(), image_filename,
+  torchvision.utils.save_image(fixed_Gz.float().cpu(), image_filename,
                              nrow=int(fixed_Gz.shape[0] **0.5), normalize=True)
   # For now, every time we save, also save sample sheets
   utils.sample_sheet(which_G,
