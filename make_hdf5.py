@@ -60,6 +60,7 @@ def run(config):
                                         batch_size=config['batch_size'],
                                         shuffle=False,
                                         dataset_root=config['dataset_root'],
+                                        use_multiepoch_sampler=False,
                                         **kwargs)[0]     
 
   # HDF5 supports chunking and compression. You may want to experiment 

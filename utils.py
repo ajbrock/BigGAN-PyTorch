@@ -500,7 +500,7 @@ class MultiEpochSampler(torch.utils.data.Sampler):
 def get_data_loaders(dataset, dataset_root=None, augment=False, batch_size=64, 
                      num_workers=8, shuffle=True, load_in_mem=False, hdf5=False,
                      pin_memory=True, drop_last=True, start_itr=0,
-                     num_epochs=500, use_multiepoch_sampler=True,
+                     num_epochs=500, use_multiepoch_sampler=False,
                      **kwargs):
 
   # Test which cluster we're on and select a root appropriately
@@ -1018,6 +1018,10 @@ def hashname(name):
   return animal_hash.a[a] + animal_hash.b[b] + animal_hash.c[c]
 
 
+# Get GPU memory, -i is the index
+def query_gpu(indices):
+  os.system('nvidia-smi -i 0 --query-gpu=memory.free --format=csv')
+  
 # Convenience function to count the number of parameters
 def count_parameters(module):
   print('Number of parameters: {}'.format(
