@@ -89,6 +89,9 @@ def prepare_parser():
     '--dim_z', type=int, default=128,
     help='Noise dimensionality: %(default)s)')
   parser.add_argument(
+    '--z_var', type=float, default=1.0,
+    help='Noise variance: %(default)s)')    
+  parser.add_argument(
     '--hier', action='store_true', default=False,
     help='Use hierarchical z in G? (default: %(default)s)')
   parser.add_argument(
@@ -264,7 +267,11 @@ def prepare_parser():
     '--experiment_name', type=str, default='',
     help='Optionally override the automatic experiment naming with this arg. '
          '(default: %(default)s)')
-
+  parser.add_argument(
+    '--config_from_name', action='store_true', default=False,
+    help='Use a hash of the experiment name instead of the full config '
+         '(default: %(default)s)')
+         
   ### EMA Stuff ###
   parser.add_argument(
     '--ema', action='store_true', default=False,
@@ -366,12 +373,22 @@ def add_sample_parser(parser):
     help='Produce class-conditional sample sheets and stick them in '
          'the samples root? (default: %(default)s)')
   parser.add_argument(
+    '--sample_interps', action='store_true', default=False,
+    help='Produce interpolation sheets and stick them in '
+         'the samples root? (default: %(default)s)')         
+  parser.add_argument(
     '--sample_sheet_folder_num', type=int, default=-1,
     help='Number to use for the folder for these sample sheets '
          '(default: %(default)s)')
   parser.add_argument(
     '--sample_random', action='store_true', default=False,
     help='Produce a single random sheet? (default: %(default)s)')
+  parser.add_argument(
+    '--sample_trunc_curves', type=str, default='',
+    help='Get inception metrics with a range of variances?'
+         'To use this, specify a startpoint, step, and endpoint, e.g. '
+         '--sample_trunc_curves 0.2_0.1_1.0 for a startpoint of 0.2, '
+         ' endpoint of 1.0, and stepsize of 1.0. (default: %(default)s)')
   parser.add_argument(
     '--sample_inception_metrics', action='store_true', default=False,
     help='Calculate Inception metrics with sample.py? (default: %(default)s)')  
@@ -706,7 +723,7 @@ def save_weights(G, D, state_dict, weights_root, experiment_name,
 
 # Load a model's weights, optimizer, and the state_dict
 def load_weights(G, D, state_dict, weights_root, experiment_name, 
-                 name_suffix=None, G_ema=None, strict=True):
+                 name_suffix=None, G_ema=None, strict=True, load_optim=True):
   root = '/'.join([weights_root, experiment_name])
   if name_suffix:
     print('Loading %s weights from %s...' % (name_suffix, root))
@@ -716,14 +733,16 @@ def load_weights(G, D, state_dict, weights_root, experiment_name,
     G.load_state_dict(
       torch.load('%s/%s.pth' % (root, join_strings('_', ['G', name_suffix]))),
       strict=strict)
-    G.optim.load_state_dict(
-      torch.load('%s/%s.pth' % (root, join_strings('_', ['G_optim', name_suffix]))))
+    if load_optim:
+      G.optim.load_state_dict(
+        torch.load('%s/%s.pth' % (root, join_strings('_', ['G_optim', name_suffix]))))
   if D is not None:
     D.load_state_dict(
       torch.load('%s/%s.pth' % (root, join_strings('_', ['D', name_suffix]))),
       strict=strict)
-    D.optim.load_state_dict(
-      torch.load('%s/%s.pth' % (root, join_strings('_', ['D_optim', name_suffix]))))
+    if load_optim:
+      D.optim.load_state_dict(
+        torch.load('%s/%s.pth' % (root, join_strings('_', ['D_optim', name_suffix]))))
   # Load state dict
   for item in state_dict:
     state_dict[item] = torch.load('%s/%s.pth' % (root, join_strings('_', ['state_dict', name_suffix])))[item]
@@ -854,8 +873,8 @@ def progress(items, desc='', total=None, min_delay=0.1, displaytype='s1k'):
 # Sample function for use with inception metrics
 def sample(G, z_, y_, config):
   with torch.no_grad():
-    z_.normal_()
-    y_.random_(0, config['n_classes'])
+    z_.sample_()
+    y_.sample_()
     if config['parallel']:
       G_z =  nn.parallel.data_parallel(G, (z_, G.shared(y_)))
     else:
@@ -879,7 +898,7 @@ def sample_sheet(G, classes_per_sheet, num_classes, samples_per_class, parallel,
       if z_ is None:
         z = torch.randn(classes_per_sheet, G.dim_z, device='cuda')
       else:
-        z_.normal_()
+        z_.sample_()
       with torch.no_grad():
         if parallel:
           o = nn.parallel.data_parallel(G, (z_[:classes_per_sheet], G.shared(y)))
@@ -1027,7 +1046,10 @@ def count_parameters(module):
   print('Number of parameters: {}'.format(
     sum([p.data.nelement() for p in module.parameters()])))
 
-
+# Convenience function to count flops for a given model
+# def count_flops():
+  # if G:
+    
 # Convenience function to sample an index, not actually a 1-hot
 def sample_1hot(batch_size, num_classes, device='cuda'):
   return torch.randint(low=0, high=num_classes, size=(batch_size,),
@@ -1036,40 +1058,59 @@ def sample_1hot(batch_size, num_classes, device='cuda'):
 
 # A highly simplified convenience class for sampling from distributions
 # One could also use PyTorch's inbuilt distributions package.
-# Currently unused anywhere in this codebase.
-class Distribution(object):
-  def __init__(self, dist_type, batch_size, device, **kwargs):    
-    self.dist_type = dist_type    
+# Note that this class requires initialization to proceed as
+# x = Distribution(torch.randn(size))
+# x.init_distribution(dist_type, **dist_kwargs)
+# x = x.to(device,dtype)
+class Distribution(torch.Tensor):
+  # Init the params of the distribution
+  def init_distribution(self, dist_type, **kwargs):    
+    self.dist_type = dist_type
+    self.dist_kwargs = kwargs
     if self.dist_type == 'normal':
       self.mean, self.var = kwargs['mean'], kwargs['var']
-      self.dim = kwargs['dim']
-      self.variable = torch.randn(batch_size, dim, 
-                                  requires_grad=False, device=device)
     elif self.dist_type == 'categorical':
       self.num_categories = kwargs['num_categories']
-      self.variable = torch.randint(low=0, high=nclasses,
-                     size=(G_batch_size,), device=device,
-                     dtype=torch.int64, requires_grad=False)
-  def sample(self):
+
+  def sample_(self):
     if self.dist_type == 'normal':
-      self.variable.normal_(self.mean, self.var)
+      self.normal_(self.mean, self.var)
     elif self.dist_type == 'categorical':
-      self.variable.random_(0, self.num_categories)    
-    return self.variable
+      self.random_(0, self.num_categories)    
+    # return self.variable
+    
+  # Silly hack: overwrite the to() method to wrap the new object
+  # in a distribution as well
+  def to(self, *args, **kwargs):
+    new_obj = Distribution(self)
+    new_obj.init_distribution(self.dist_type, **self.dist_kwargs)
+    new_obj.data = super().to(*args, **kwargs)    
+    return new_obj
+
+
+# def make_sample_fn(dist_type, **kwargs):
+  # def sample_(self):
+    # if dist_type == 'normal':
+      # self.normal_(kwargs['mean'], kwargs['var'])
+    # elif dist_type == 'categorical':
+      # self.random_(0, kwargs['num_categories'])
+  # return sample_
 
 # Convenience function to prepare a z and y vector
-def prepare_z_y(G_batch_size, dim_z, nclasses, device='cuda', fp16=False):
-  z_ = torch.randn(G_batch_size, dim_z, requires_grad=False, device=device)
+def prepare_z_y(G_batch_size, dim_z, nclasses, device='cuda', 
+                fp16=False,z_var=1.0):
+  z_ = Distribution(torch.randn(G_batch_size, dim_z, requires_grad=False))
+  z_.init_distribution('normal', mean=0, var=z_var)
+  z_ = z_.to(device,torch.float16 if fp16 else torch.float32)   
+  
   if fp16:
     z_ = z_.half()
-  y_ = torch.randint(low=0, high=nclasses,
-                     size=(G_batch_size,), device=device,
-                     dtype=torch.int64, requires_grad=False)
+
+  y_ = Distribution(torch.zeros(G_batch_size, requires_grad=False))
+  y_.init_distribution('categorical',num_categories=nclasses)
+  y_ = y_.to(device, torch.int64)
   return z_, y_
 
-
-import math
-from torch.optim.optimizer import Optimizer
 
 def initiate_standing_stats(net):
   for module in net.modules():
@@ -1095,6 +1136,8 @@ def accumulate_standing_stats(net, z, y, nclasses, num_accumulations=16):
 # parameters and fp16 activations).
 #
 # Note that this calls .float().cuda() on the params.
+import math
+from torch.optim.optimizer import Optimizer
 class Adam16(Optimizer):
   def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8,weight_decay=0):
     defaults = dict(lr=lr, betas=betas, eps=eps,

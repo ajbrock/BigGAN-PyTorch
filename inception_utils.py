@@ -173,15 +173,18 @@ def prepare_inception_metrics(dataset, parallel, no_fid=False):
   data_sigma = np.load(dataset+'_inception_moments.npz')['sigma']
   # Load network
   net = load_inception_net(parallel)
-  def get_inception_metrics(sample, num_inception_images, num_splits=10):
-    print('Gathering activations...')
+  def get_inception_metrics(sample, num_inception_images, num_splits=10, prints=True):
+    if prints:
+      print('Gathering activations...')
     pool, logits, labels = accumulate_inception_activations(sample, net, num_inception_images)
-    print('Calculating Inception Score...')
+    if prints:  
+      print('Calculating Inception Score...')
     IS_mean, IS_std = calculate_inception_score(logits, num_splits)
     if no_fid:
       FID = 9999.0
     else:
-      print('Calculating means and covariances...')
+      if prints:
+        print('Calculating means and covariances...')
       mu, sigma = np.mean(pool, axis=0), np.cov(pool, rowvar=False)
       FID = calculate_frechet_distance(mu, sigma, data_mu, data_sigma)
     # Delete mu, sigma, pool, logits, and labels, just in case
