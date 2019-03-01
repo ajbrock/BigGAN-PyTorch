@@ -87,8 +87,9 @@ class SN(object):
       svs, us, vs = power_iteration(W_mat, self.u, update=self.training, eps=self.eps) 
     # Update the svs
     if self.training:
-     for i, sv in enumerate(svs):
-        self.sv[i][:] = sv        
+      with torch.no_grad(): # Make sure to do this in a no_grad() context or you'll get memory leaks!
+        for i, sv in enumerate(svs):
+          self.sv[i][:] = sv     
     return self.weight / svs[0]
 
 

@@ -79,10 +79,11 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     if config['ema']:
       ema.update(state_dict['itr'])
     
-    # Return G's loss and the components of D's loss.
-    return {'G_loss': float(G_loss.item()), 
+    out = {'G_loss': float(G_loss.item()), 
             'D_loss_real': float(D_loss_real.item()),
             'D_loss_fake': float(D_loss_fake.item())}
+    # Return G's loss and the components of D's loss.
+    return out
   return train
   
 # Prepare save and sample function

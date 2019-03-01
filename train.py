@@ -205,8 +205,6 @@ def run(config):
       pbar = utils.progress(loaders[0],displaytype='s1k' if config['use_multiepoch_sampler'] else 'eta')
     else:
       pbar = tqdm(loaders[0])
-    if config['which_train_fn'] != 'GAN':
-      os.system('free')
     for i, (x, y) in enumerate(pbar):
       # Increment the iteration counter
       state_dict['itr'] += 1
@@ -221,7 +219,6 @@ def run(config):
       else:
         x, y = x.to(device), y.to(device)
       metrics = train(x, y)
-      del x, y
       train_log.log(itr=int(state_dict['itr']), **metrics)
       
       # Every sv_log_interval, log singular values
