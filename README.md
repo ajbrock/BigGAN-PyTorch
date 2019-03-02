@@ -53,6 +53,12 @@ See [This directory](https://gist.github.com/yrevar/942d3a0ac09ec9e5eb3a) for Im
 
 ## Acknowledgments
 Thanks to Google for the generous cloud credit donations.
+
 Progress bar [originally from](https://github.com/Lasagne/Recipes/tree/master/papers/densenet) Jan Schlüter
+
+pytorch [implementation of cov](https://discuss.pytorch.org/t/covariance-and-gradient-support/16217/2), from Modar M. Alfadly
+
+PyTorch [fast Matrix Sqrt](https://github.com/msubhransu/matrix-sqrt) for FID from Tsung-Yu Lin, and Subhransu Maji
+
 TensorFlow Inception Score code from [OpenAI's Improved-GAN](https://github.com/openai/improved-gan)
 

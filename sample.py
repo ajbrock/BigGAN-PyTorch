@@ -140,11 +140,12 @@ def run(config):
   # Prepare a simple function get metrics that we use for trunc curves
   def get_metrics():
     sample = functools.partial(utils.sample, G=G, z_=z_, y_=y_, config=config)    
-    IS_mean, IS_std, FID = get_inception_metrics(sample, 50000, num_splits=10, prints=False)
+    IS_mean, IS_std, FID = get_inception_metrics(sample, config['num_inception_images'], num_splits=10, prints=False)
     # Prepare output string
     outstring = 'Using %s weights ' % ('ema' if config['use_ema'] else 'non-ema')
     outstring += 'in %s mode, ' % ('eval' if config['G_eval_mode'] else 'training')
     outstring += 'with noise variance %3.3f, ' % z_.var
+    outstring += 'over %d images, ' % config['num_inception_images']
     if config['accumulate_stats'] or not config['G_eval_mode']:
       outstring += 'with batch size %d, ' % G_batch_size
     if config['accumulate_stats']:
