@@ -76,6 +76,12 @@ def prepare_parser():
     '--D_ch', type=int, default=64,
     help='Channel multiplier for D (default: %(default)s)')
   parser.add_argument(
+    '--G_depth', type=int, default=1,
+    help='Number of resblocks per stage in G? (default: %(default)s)')
+  parser.add_argument(
+    '--D_depth', type=int, default=1,
+    help='Number of resblocks per stage in D? (default: %(default)s)')
+  parser.add_argument(
     '--D_thin', action='store_false', dest='D_wide', default=True,
     help='Use the SN-GAN channel pattern for D? (default: %(default)s)')
   parser.add_argument(
@@ -202,10 +208,7 @@ def prepare_parser():
   parser.add_argument(
     '--num_standing_accumulations', type=int, default=16,
     help='Number of forward passes to use in accumulating standing stats? '
-         '(default: %(default)s)')
-  parser.add_argument(
-    '--BN_sync', action='store_true', default=False,
-    help='Used synchronized batch norm.')        
+         '(default: %(default)s)')        
     
   ### Bookkeping stuff ###  
   parser.add_argument(
@@ -989,6 +992,8 @@ def name_from_config(config):
   'seed%d' % config['seed'],
   'Gch%d' % config['G_ch'],
   'Dch%d' % config['D_ch'],
+  'Gd%d' % config['G_depth'] if config['G_depth'] > 1 else None,
+  'Dd%d' % config['D_depth'] if config['D_depth'] > 1 else None,
   'bs%d' % config['batch_size'],
   'Gfp16' if config['G_fp16'] else None,
   'Dfp16' if config['D_fp16'] else None,
@@ -1062,6 +1067,7 @@ def sample_1hot(batch_size, num_classes, device='cuda'):
 # x = Distribution(torch.randn(size))
 # x.init_distribution(dist_type, **dist_kwargs)
 # x = x.to(device,dtype)
+# This is partially based on https://discuss.pytorch.org/t/subclassing-torch-tensor/23754/2
 class Distribution(torch.Tensor):
   # Init the params of the distribution
   def init_distribution(self, dist_type, **kwargs):    
