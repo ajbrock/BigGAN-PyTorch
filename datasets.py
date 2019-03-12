@@ -184,7 +184,7 @@ import torch
 class ILSVRC_HDF5(data.Dataset):
   def __init__(self, root, transform=None, target_transform=None,
                load_in_mem=False, train=True,download=False, validate_seed=0,
-               val_split=0): # last four are dummies
+               val_split=0, **kwargs): # last four are dummies
       
     self.root = root
     self.num_imgs = len(h5.File(root, 'r')['labels'])

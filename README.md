@@ -8,7 +8,7 @@ This repo contains code for 4-8 GPU training of BigGANs from [Large Scale GAN Tr
 
 This code is by Andy Brock and Alex Andonian.
 
-## How To Use This Code:
+## How To Use This Code
 You will need:
 
 - [PyTorch](https://PyTorch.org/), version 1.0.1
@@ -29,9 +29,11 @@ full-sized BigGAN model with a batch size of 256 and 8 gradient accumulations, f
 
 You will first need to figure out the maximum batch size your setup can support. The pre-trained models provided here were trained on 8xV100 (16GB VRAM each) which can support slightly more than the BS256 used by default.
 Once you've determined this, you should modify the script so that the batch size times the number of gradient accumulations is equal to your desired total batch size (BigGAN defaults to 2048).
-By default, this script also uses the `--load_in_mem` which loads the entire (~64GB) I128.hdf5 file into RAM for faster data loading. If you don't have enough RAM to support this (probably 96+), remove this argument.
+
+Note also that this script also uses the `--load_in_mem` which loads the entire (~64GB) I128.hdf5 file into RAM for faster data loading. If you don't have enough RAM to support this (probably 96GB+), remove this argument.
 
 During training, this script will output logs with training metrics and test metrics, will save multiple copies (2 most recent and 5 highest-scoring) of the model weights/optimizer params, and will produce samples and interpolations every time it saves weights.
+The logs folder contains scripts to process these logs and plot the results using MATLAB (sorry not sorry).
 
 After training, one can use `sample.py` to produce additional samples and interpolations, test with different truncation values, batch sizes, number of standing stat accumulations, etc. See the `sample_BigGAN_256x8.sh` script for an example.
 
@@ -40,11 +42,20 @@ You can point all of these to a different base folder using the `--base_root` ar
 
 There are scripts to run a model on CIFAR, and to run BigGAN-deep, SA-GAN (with EMA) and SN-GAN on ImageNet. The SA-GAN code assumes you have 4xTitanX (or equivalent in terms of GPU RAM) and will run with a batch size of 128 and 2 gradient accumulations.
 
-This repo also contains scripts for porting the original TFHub BigGAN Generator weights to PyTorch. See the scripts in the TFHub folder for more details.
 
+## Pretraind models
+We include three pretrained model checkpoints (with G, D, the EMA copy of G, the optimizers, and the state dict). 
+The main checkpoint is for a BigGAN trained on ImageNet at 128x128, using BS256 and 8 gradient accumulations, taken just before collapse: LINK
+Second, we include a smaller (channel multiplier 64) BigGAN trained with the same settings: LINK
+Finally, we include an earlier checkpoint of the first model (100k iters), at high performance but well before collapse, which may be easier to fine-tune: LINK
+
+--graphic for main checkpoint--
+
+This repo also contains scripts for porting the original TFHub BigGAN Generator weights to PyTorch. See the scripts in the TFHub folder for more details.
 
 ## Fine-tuning, Using Your Own Dataset, or Making New Training Functions
 ![That's deep, man](imgs/DeepSamples.png?raw=true "Deep Samples")
+
 If you wish to resume interrupted training or fine-tune a pre-trained model, run the same launch script but with the `--resume` argument added. 
 Experiment names are automatically generated from the configuration, but can be overriden using the `--experiment_name` arg (for example, if you wish to fine-tune a model using modified optimizer settings).
 
