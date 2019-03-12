@@ -25,7 +25,7 @@ Which by default assumes your ImageNet training set is downloaded into the root 
 
 In the scripts folder, there are multiple bash scripts which will train BigGANs with different batch sizes. This code assumes you do not have access to a full TPU pod, and accordingly
 spoofs mega-batches by using gradient accumulation (averaging grads over multiple minibatches, and only taking an optimizer step after N accumulations). By default, the `launch_BigGAN_bs256x8.sh` script trains a
-full-sized BigGAN model with a batch size of 256 and 8 gradient accumulations, for a total batch size of 2048. On 8xV100 with full-precision training, 
+full-sized BigGAN model with a batch size of 256 and 8 gradient accumulations, for a total batch size of 2048. On 8xV100 with full-precision training (no tensorcores), this script takes 15 days to train to 150k iterations.
 
 You will first need to figure out the maximum batch size your setup can support. The pre-trained models provided here were trained on 8xV100 (16GB VRAM each) which can support slightly more than the BS256 used by default.
 Once you've determined this, you should modify the script so that the batch size times the number of gradient accumulations is equal to your desired total batch size (BigGAN defaults to 2048).
@@ -43,11 +43,11 @@ You can point all of these to a different base folder using the `--base_root` ar
 There are scripts to run a model on CIFAR, and to run BigGAN-deep, SA-GAN (with EMA) and SN-GAN on ImageNet. The SA-GAN code assumes you have 4xTitanX (or equivalent in terms of GPU RAM) and will run with a batch size of 128 and 2 gradient accumulations.
 
 
-## Pretraind models
+## Pretrained models
 We include three pretrained model checkpoints (with G, D, the EMA copy of G, the optimizers, and the state dict). 
-The main checkpoint is for a BigGAN trained on ImageNet at 128x128, using BS256 and 8 gradient accumulations, taken just before collapse: LINK
-Second, we include a smaller (channel multiplier 64) BigGAN trained with the same settings: LINK
-Finally, we include an earlier checkpoint of the first model (100k iters), at high performance but well before collapse, which may be easier to fine-tune: LINK
+- The main checkpoint is for a BigGAN trained on ImageNet at 128x128, using BS256 and 8 gradient accumulations, taken just before collapse: LINK
+- Second, we include a smaller (channel multiplier 64) BigGAN trained with the same settings: LINK
+- Finally, we include an earlier checkpoint of the first model (100k iters), at high performance but well before collapse, which may be easier to fine-tune: LINK
 
 --graphic for main checkpoint--
 
@@ -75,22 +75,18 @@ especially if training takes multiple weeks. Hopefully these will be helpful for
 - We include an accelerated, low-memory consumption ortho reg implementation.
 - By default, we only compute the top singular value (the spectral norm), but this code supports computing more SVs through the `--num_G_SVs` argument.
 
-## Key Differences Between This code And The Original BigGAN
+## Key Differences Between This Code And The Original BigGAN
 - We use the optimizer settings from SA-GAN (G_lr=1e-4, D_lr=4e-4, num_D_steps=1, as opposed to BigGAN's G_lr=5e-5, D_lr=2e-5, num_D_steps=2).
-While slightly less performant, this was the first corner we cut to help bring training times down.
-
+While slightly less performant, this was the first corner we cut to bring training times down.
 - By default, we do not use Cross-Replica BatchNorm (AKA Synced BatchNorm). 
 The two variants we tried (a custom, naive one and the one included in this repo) have slightly different gradients (albeit identical forward passes) from the built-in BatchNorm, which appear to be sufficient to cripple training.
-
 - Gradient accumulation means that we update the SV estimates and the BN statistics 8 times more frequently. This means that the BN stats are much closer to standing stats, and that the singular value estimates tend to be more accurate.
 Because of this, we measure metrics by default with G in test mode (using the BatchNorm running stat estimates instead of computing standing stats as in the paper). We do still support standing stats (see the sample.sh scripts).
 This could also conceivably result in gradients from the earlier accumulations being stale, but in practice this does not appear to be a problem.
-
 - This repo uses the PyTorch in-built inception network to calculate IS and FID. 
 These scores are different from the scores you would get using the official TF inception code, and are only for monitoring purposes!
 IS using the PyTorch net tends to be 5-10% lower than using the official TF net.
-Run sample.py on your model, with the `--sample_npz` argument, then run inception_tf13 to calculate the actual TF IS. Note that you will need to have TensorFlow 1.3 or earlier installed, as 1.4+ breaks the original IS code.
-
+Run sample.py on your model, with the `--sample_npz` argument, then run inception_tf13 to calculate the actual TF IS. Note that you will need to have TensorFlow 1.3 or earlier installed, as TF1.4+ breaks the original IS code.
 - The currently provided pretrained models were not trained with orthogonal regularization. Training without ortho reg seems to increase the probability that models will not be amenable to truncation,
 but it looks like this particular model got a winning ticket. Regardless, we provide two highly optimized (fast and minimal memory consumption) ortho reg implementations which directly compute the ortho reg. gradients.
 
@@ -106,8 +102,7 @@ With that said, this is a somewhat large codebase for a single project. While I 
 Want to work on or improve this code? There are a couple things this repo would benefit from, but which don't yet work.
 
 - Synchronized BatchNorm (AKA Cross-Replica BatchNorm). We tried out two variants of this, but for some unknown reason it crippled training each time.
-  We have not tried the [apex](https://github.com/NVIDIA/apex) SyncBN as my school's servers are on ancient NVIDIA drivers that don't support it--apex would probably be a good place to start.
-  
+  We have not tried the [apex](https://github.com/NVIDIA/apex) SyncBN as my school's servers are on ancient NVIDIA drivers that don't support it--apex would probably be a good place to start. 
 - Mixed precision training and making use of tensorcores. This repo includes a naive mixed-precision Adam implementation which works early in training but leads to early collapse, and doesn't do anything to activate tensorcores (it just reduces memory consumption).
   As above, integrating [apex](https://github.com/NVIDIA/apex) into this code and employing its mixed-precision training techniques to take advantage of tensorcores and reduce memory consumption could yield substantial speed gains.
 
