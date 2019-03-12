@@ -183,7 +183,8 @@ def run(config):
   fixed_z, fixed_y = utils.prepare_z_y(G_batch_size, G.dim_z,
                                        config['n_classes'], device=device,
                                        fp16=config['G_fp16'])  
-
+  fixed_z.sample_()
+  fixed_y.sample_()
   # Loaders are loaded, prepare the training function
   if config['which_train_fn'] == 'GAN':
     train = train_fns.GAN_training_function(G, D, GD, z_, y_, 

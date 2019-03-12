@@ -1,4 +1,6 @@
 # use z_var to change the variance of z for all the sampling
+# use --mybn --accumulate_stats --num_standing_accumulations 32 to 
+# use running stats
 python sample.py \
 --dataset I128_hdf5 --parallel --shuffle  --num_workers 8 --batch_size 256  \
 --num_G_accumulations 8 --num_D_accumulations 8 \
