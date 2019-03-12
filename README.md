@@ -44,7 +44,7 @@ There are scripts to run a model on CIFAR, and to run BigGAN-deep, SA-GAN (with 
 
 
 ## Pretrained models
-We include three pretrained model checkpoints (with G, D, the EMA copy of G, the optimizers, and the state dict). 
+We include three pretrained model checkpoints (with G, D, the EMA copy of G, the optimizers, and the state dict):
 - The main checkpoint is for a BigGAN trained on ImageNet at 128x128, using BS256 and 8 gradient accumulations, taken just before collapse: LINK
 - Second, we include a smaller (channel multiplier 64) BigGAN trained with the same settings: LINK
 - Finally, we include an earlier checkpoint of the first model (100k iters), at high performance but well before collapse, which may be easier to fine-tune: LINK
@@ -112,13 +112,14 @@ See [This directory](https://gist.github.com/yrevar/942d3a0ac09ec9e5eb3a) for Im
 ## Acknowledgments
 We would like to thank Jiahui Yu and Ming-Yu Liu of NVIDIA for helping run experiments. Thanks to Google for the generous cloud credit donations.
 
-[Progress bar](https://github.com/Lasagne/Recipes/tree/master/papers/densenet) originally from Jan Schlüter
+[SyncBN](https://github.com/vacancy/Synchronized-BatchNorm-PyTorch)] by Jiayuan Mao and Tete Xiao.
+[Progress bar](https://github.com/Lasagne/Recipes/tree/master/papers/densenet) originally from Jan Schlüter.
 
-Test metrics logger from [VoxNet](https://github.com/dimatura/voxnet)
+Test metrics logger from [VoxNet.](https://github.com/dimatura/voxnet)
 
-PyTorch [implementation of cov](https://discuss.PyTorch.org/t/covariance-and-gradient-support/16217/2) from Modar M. Alfadly
+PyTorch [implementation of cov](https://discuss.PyTorch.org/t/covariance-and-gradient-support/16217/2) from Modar M. Alfadly.
 
-PyTorch [fast Matrix Sqrt](https://github.com/msubhransu/matrix-sqrt) for FID from Tsung-Yu Lin and Subhransu Maji
+PyTorch [fast Matrix Sqrt](https://github.com/msubhransu/matrix-sqrt) for FID from Tsung-Yu Lin and Subhransu Maji.
 
-TensorFlow Inception Score code from [OpenAI's Improved-GAN](https://github.com/openai/improved-gan)
+TensorFlow Inception Score code from [OpenAI's Improved-GAN.](https://github.com/openai/improved-gan)
 
