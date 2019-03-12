@@ -4,7 +4,7 @@ The author's authorized and officially unofficial PyTorch BigGAN implementation.
 ![Dogball? Dogball!](imgs/header_image.jpg?raw=true "Header")
 
 
-This repo contains code for replicating experiments from [Large Scale GAN Training for High Fidelity Natural Image Synthesis](https://arxiv.org/abs/1809.11096) by Andrew Brock, Jeff Donahue, and Karen Simonyan.
+This repo contains code for replicating select results from [Large Scale GAN Training for High Fidelity Natural Image Synthesis](https://arxiv.org/abs/1809.11096) by Andrew Brock, Jeff Donahue, and Karen Simonyan.
 
 This code is by Andy Brock and Alex Andonian.
 
@@ -42,23 +42,54 @@ You will need to modify utils.py
 
 -using your own training function: either modify train_fns.GAN_training_function or add a new train fn and modify the train = whichtrainfn line in train.py
 
+-You should probably use FID instead of IS for any dataset other than ImageNet. 
+
+## Neat things about this code
+--Contains an accelerated FID calculation--the original scipy version can require upwards of 10 minutes to calculate the matrix sqrt, this version uses an accelerated pytorch version to calculate it in under a second.
+--accelerated ortho reg
+--also effectively contains implementations of SA-GAN and SN-GAN
+
+## Key differences between this code and the original BigGAN
+-no sync BN
+-Gradient accumulation means that we update the SV estimates and the BN statistics 8x as much. This means that the BN stats are much closer to standing stats (hence why we can get away with running the EMA'd G in eval mode),
+and that the singular value estimates tend to be more accurate. This could also conceivably result in 
+-this code uses the pytorch in-built inception network to calculate IS and FID. 
+These scores are different from the scores you would get using the official TF inception code, and are only for monitoring purposes!
+ IS using the pytorch net tends to be 5-10% lower than using the official TF net.
+Run sample.py on your model, with the --sample_npz argument, then run inception_tf13 to calculate the actual TF IS.
+
+-At the moment these pretrained models were not trained with orthogonal regularization. Training without ortho reg seems to increase the probability that models will not be amenable to truncation,
+but it seems to be okay here. Regardless, we provide two highly optimized (fast and minimal memory consumption) ortho reg implementations which directly compute the ortho reg. gradients.
+
+
 ## Saved info to be integrated into docs later
 See [This directory](https://gist.github.com/yrevar/942d3a0ac09ec9e5eb3a) for ImageNet labels.
 
+
+## Feature requests
+Want to work on or improve this code? There are a couple things this repo would benefit from, but which we haven't gotten working.
+
+- Synchronized BatchNorm (AKA Cross-Replica BatchNorm). We tried out two variants of this, but for some unknown reason our nets did not train with this on. 
+  We have not tried the [apex](https://github.com/NVIDIA/apex) SyncBN as my school's servers are on ancient NVIDIA drivers that don't support it--apex would probably be a good place to start.
+  
+- Mixed precision training and making use of tensorcores. This repo includes a naive mixed-precision Adam implementation which works early in training but leads to early collapse, and doesn't do anything to activate tensorcores (it just reduces memory consumption.
+  As above, integrating [apex](https://github.com/NVIDIA/apex) into this code and employing its mixed-precision training techniques to take advantage of tensorcores and reduce memory consumption could yield substantial speed gains.
+
 ## To-do:
-- Debug *everything*
 - Flesh out this readme
 - Writeup design doc
 - Write acks
 
 ## Acknowledgments
-Thanks to Google for the generous cloud credit donations.
+We would like to thank Jiahui Yu and Ming-Yu Liu of NVIDIA for helping run experiments. Thanks to Google for the generous cloud credit donations.
 
-Progress bar [originally from](https://github.com/Lasagne/Recipes/tree/master/papers/densenet) Jan Schlüter
+[Progress bar](https://github.com/Lasagne/Recipes/tree/master/papers/densenet) originally from Jan Schlüter
 
-pytorch [implementation of cov](https://discuss.pytorch.org/t/covariance-and-gradient-support/16217/2), from Modar M. Alfadly
+Test metrics logger from [VoxNet](https://github.com/dimatura/voxnet)
 
-PyTorch [fast Matrix Sqrt](https://github.com/msubhransu/matrix-sqrt) for FID from Tsung-Yu Lin, and Subhransu Maji
+pytorch [implementation of cov](https://discuss.pytorch.org/t/covariance-and-gradient-support/16217/2) from Modar M. Alfadly
+
+PyTorch [fast Matrix Sqrt](https://github.com/msubhransu/matrix-sqrt) for FID from Tsung-Yu Lin and Subhransu Maji
 
 TensorFlow Inception Score code from [OpenAI's Improved-GAN](https://github.com/openai/improved-gan)
 

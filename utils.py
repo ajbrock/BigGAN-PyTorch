@@ -760,12 +760,13 @@ class MetricsLogger(object):
     with open(self.fname, 'a') as f:
       f.write(json.dumps(record, ensure_ascii=True) + '\n')
 
+
 # Logstyle is either:
 # '%#.#f' for floating point representation in text
 # '%#.#e' for exponent representation in text
-# 'npz' for output to npz
-# 'pickle' for output to a python pickle
-# 'mat' for output to a MATLAB .mat file
+# 'npz' for output to npz # NOT YET SUPPORTED
+# 'pickle' for output to a python pickle # NOT YET SUPPORTED
+# 'mat' for output to a MATLAB .mat file # NOT YET SUPPORTED
 class MyLogger(object):
   def __init__(self, fname, reinitialize=False, logstyle='%3.3f'):
     self.root = fname
@@ -774,7 +775,7 @@ class MyLogger(object):
     self.reinitialize = reinitialize
     self.metrics = []
     self.logstyle = logstyle # One of '%3.3f' or like '%3.3e'
-    #for suffix in 'D_loss_real', 'D_loss_fake', 'G_loss', 'recon', 'kl':
+
   # Delete log if re-starting and log already exists
   def reinit(self, item):
     if os.path.exists('%s/%s.log' % (self.root, item)):
@@ -786,6 +787,7 @@ class MyLogger(object):
         else:
           print('{} exists, deleting...'.format('%s_%s.log' % (self.root, item)))
         os.remove('%s/%s.log' % (self.root, item))
+  
   # Log in plaintext; this is designed for being read in MATLAB(sorry not sorry)
   def log(self, itr, **kwargs):
     for arg in kwargs:
@@ -817,7 +819,8 @@ def write_metadata(logs_root, experiment_name, config, state_dict):
 Very basic progress indicator to wrap an iterable in.
 
 Author: Jan Schlüter
-Andy's adds: time elapsed in addition to ETA.
+Andy's adds: time elapsed in addition to ETA, makes it possible to add
+estimated time to 1k iters instead of estimated time to completion.
 """
 def progress(items, desc='', total=None, min_delay=0.1, displaytype='s1k'):
   """
@@ -930,7 +933,7 @@ def interp_sheet(G, num_per_sheet, num_midpoints, num_classes, parallel,
     ys = interp(G.shared(sample_1hot(num_per_sheet, num_classes)).view(num_per_sheet, 1, -1),
                 G.shared(sample_1hot(num_per_sheet, num_classes)).view(num_per_sheet, 1, -1),
                 num_midpoints).view(num_per_sheet * (num_midpoints + 2), -1)
-  # Run the net--note that we've already passed through G.shared.
+  # Run the net--note that we've already passed y through G.shared.
   if G.fp16:
     zs = zs.half()
   with torch.no_grad():
@@ -1031,16 +1034,14 @@ def hashname(name):
 # Get GPU memory, -i is the index
 def query_gpu(indices):
   os.system('nvidia-smi -i 0 --query-gpu=memory.free --format=csv')
-  
-# Convenience function to count the number of parameters
+
+
+# Convenience function to count the number of parameters in a module
 def count_parameters(module):
   print('Number of parameters: {}'.format(
     sum([p.data.nelement() for p in module.parameters()])))
 
-# Convenience function to count flops for a given model
-# def count_flops():
-  # if G:
-    
+   
 # Convenience function to sample an index, not actually a 1-hot
 def sample_1hot(batch_size, num_classes, device='cuda'):
   return torch.randint(low=0, high=num_classes, size=(batch_size,),
@@ -1080,14 +1081,6 @@ class Distribution(torch.Tensor):
     return new_obj
 
 
-# def make_sample_fn(dist_type, **kwargs):
-  # def sample_(self):
-    # if dist_type == 'normal':
-      # self.normal_(kwargs['mean'], kwargs['var'])
-    # elif dist_type == 'categorical':
-      # self.random_(0, kwargs['num_categories'])
-  # return sample_
-
 # Convenience function to prepare a z and y vector
 def prepare_z_y(G_batch_size, dim_z, nclasses, device='cuda', 
                 fp16=False,z_var=1.0):
@@ -1109,7 +1102,8 @@ def initiate_standing_stats(net):
     if hasattr(module, 'accumulate_standing'):
       module.reset_stats()
       module.accumulate_standing = True
-      
+
+
 def accumulate_standing_stats(net, z, y, nclasses, num_accumulations=16):
   initiate_standing_stats(net)
   net.train()
@@ -1120,7 +1114,7 @@ def accumulate_standing_stats(net, z, y, nclasses, num_accumulations=16):
       x = net(z, net.shared(y)) # No need to parallelize here unless using syncbn
   # Set to eval mode
   net.eval() 
-      
+
 
 # This version of Adam keeps an fp32 copy of the parameters and
 # does all of the parameter updates in fp32, while still doing the
