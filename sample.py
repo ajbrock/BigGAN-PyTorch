@@ -1,5 +1,5 @@
-# Sample.py: load a pretrained net and a weightsfile and sample
-""" ANDY'S NOTE: CURRENTLY INCOMPLETE!"""
+''' Sample
+   This script loads a pretrained net and a weightsfile and sample '''
 import functools
 import math
 import numpy as np
@@ -25,6 +25,7 @@ def run(config):
   # Prepare state dict, which holds things like epoch # and itr #
   state_dict = {'itr': 0, 'epoch': 0, 'save_num': 0, 'save_best_num': 0,
                 'best_IS': 0, 'best_FID': 999999, 'config': config}
+                
   # Optionally, get the configuration from the state dict. This allows for
   # recovery of the config provided only a state dict and experiment name,
   # and can be convenient for writing less verbose sample shell scripts.
@@ -32,14 +33,19 @@ def run(config):
     utils.load_weights(None, None, state_dict, config['weights_root'], 
                        config['experiment_name'], config['load_weights'], None,
                        strict=False, load_optim=False)
-    config = state_dict['config']
+    # Ignore items which we might want to overwrite from the command line
+    for item in state_dict['config']:
+      if item not in ['z_var', 'base_root', 'batch_size', 'G_batch_size', 'use_ema', 'G_eval_mode']:
+        config[item] = state_dict['config'][item]
   
   # update config (see train.py for explanation)
   config['resolution'] = utils.imsize_dict[config['dataset']]
   config['n_classes'] = utils.nclass_dict[config['dataset']]
   config['G_activation'] = utils.activation_dict[config['G_nl']]
-  config['D_activation'] = utils.activation_dict[config['D_nl']]  
+  config['D_activation'] = utils.activation_dict[config['D_nl']]
   config = utils.update_config_roots(config)
+  config['skip_init'] = True
+  config['no_optim'] = True
   device = 'cuda'
   
   # Seed RNG
@@ -54,13 +60,10 @@ def run(config):
                        else utils.name_from_config(config))
   print('Experiment name is %s' % experiment_name)
   
-  
-       
   G = model.Generator(**config).cuda()
-  print('Number of params in G: {}'.format(
-    sum([p.data.nelement() for p in G.parameters()])))
-  # Load weights
+  utils.count_parameters(G)
   
+  # Load weights
   print('Loading weights...')
   # Here is where we deal with the ema--load ema weights or load normal weights
   utils.load_weights(G if not (config['use_ema']) else None, None, state_dict, 
@@ -113,10 +116,10 @@ def run(config):
                          samples_root=config['samples_root'], 
                          experiment_name=experiment_name,
                          folder_number=config['sample_sheet_folder_num'],
-                         )
+                         z_=z_,)
   # Sample interp sheets
   if config['sample_interps']:
-    print('Preparing conditional sample sheets...')
+    print('Preparing interp sheets...')
     for fix_z, fix_y in zip([False, False, True], [False, True, False]):
       utils.interp_sheet(G, num_per_sheet=16, num_midpoints=8,
                          num_classes=config['n_classes'], 
@@ -160,8 +163,13 @@ def run(config):
   if config['sample_trunc_curves']:
     start, step, end = [float(item) for item in config['sample_trunc_curves'].split('_')]
     print('Getting truncation values for variance in range (%3.3f:%3.3f:%3.3f)...' % (start, step, end))
-    for var in np.arange(start, end + step, step):
+    for var in np.arange(start, end + step, step):     
       z_.var = var
+      # Optionally comment this out if you want to run with standing stats
+      # accumulated at one z variance setting
+      if config['accumulate_stats']:
+        utils.accumulate_standing_stats(G, z_, y_, config['n_classes'],
+                                    config['num_standing_accumulations'])
       get_metrics()
 def main():
   # parse command line and run    

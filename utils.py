@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 
 ''' Utilities file
-Andy's Notes: Need to properly credit things based on where we got them.
-To do: enable more in-depth validation splits
+This file contains utility functions for bookkeeping, logging, and data loading.
+Methods which directly affect training should either go in layers, the model,
+or train_fns.py.
 '''
 
 from __future__ import print_function
@@ -32,7 +33,7 @@ def prepare_parser():
   
   ### Dataset/Dataloader stuff ###
   parser.add_argument(
-    '--dataset', type=str, default='I128',
+    '--dataset', type=str, default='I128_hdf5',
     help='Which Dataset to train on, out of I128, I256, C10, C100;'
          'Append "_hdf5" to use the hdf5 version for ISLVRC '
          '(default: %(default)s)')
@@ -59,7 +60,7 @@ def prepare_parser():
   
   ### Model stuff ###
   parser.add_argument(
-    '--model', type=str, default='model',
+    '--model', type=str, default='BigGAN',
     help='Name of the model module (default: %(default)s)')
   parser.add_argument(
     '--G_param', type=str, default='SN',
@@ -247,16 +248,16 @@ def prepare_parser():
     help='Default location to store all weights, samples, data, and logs '
            ' (default: %(default)s)')
   parser.add_argument(
-    '--dataset_root', type=str, default='/home/s1580274/scratch/data/',
+    '--dataset_root', type=str, default='data',
     help='Default location where data is stored (default: %(default)s)')
   parser.add_argument(
-    '--weights_root', type=str, default='/home/s1580274/scratch/weights',
+    '--weights_root', type=str, default='weights',
     help='Default location to store weights (default: %(default)s)')
   parser.add_argument(
-    '--logs_root', type=str, default='/home/s1580274/scratch/logs',
+    '--logs_root', type=str, default='logs',
     help='Default location to store logs (default: %(default)s)')
   parser.add_argument(
-    '--samples_root', type=str, default='/home/s1580274/scratch/samples',
+    '--samples_root', type=str, default='samples',
     help='Default location to store samples (default: %(default)s)')  
   parser.add_argument(
     '--pbar', type=str, default='mine',
@@ -418,6 +419,7 @@ nclass_dict = {'I32': 1000, 'I32_hdf5': 1000,
                'I128': 1000, 'I128_hdf5': 1000,
                'I256': 1000, 'I256_hdf5': 1000,
                'C10': 10, 'C100': 100}
+# Number of classes to put per sample sheet               
 classes_per_sheet_dict = {'I32': 50, 'I32_hdf5': 50,
                           'I64': 50, 'I64_hdf5': 50,
                           'I128': 20, 'I128_hdf5': 20,
@@ -523,42 +525,23 @@ def get_data_loaders(dataset, dataset_root=None, augment=False, batch_size=64,
                      num_epochs=500, use_multiepoch_sampler=False,
                      **kwargs):
 
-  # Test which cluster we're on and select a root appropriately
-  if dataset_root is None:
-    if dataset in ['C10', 'C100']:
-      print('Using CIFAR dataset root in scratch...')
-      if os.path.isdir('/home/s1580274/scratch/data/'):
-        dataset_root = '/home/s1580274/scratch/data/'
-        print('On Eddie, using the eddie root location %s...' % dataset_root)
-      elif os.path.isdir('/home/visionlab/andy/boilerplate'):
-        dataset_root = '/home/visionlab/andy/boilerplate/'
-        print('On Nessie, using Nessie root location %s...' % dataset_root)
-    elif os.path.isdir('/home/s1580274/scratch/data/'):
-      dataset_root = '/home/s1580274/scratch/data/'
-      print('On Eddie, using the eddie root location %s...' % dataset_root)
-    elif os.path.isdir('/jmain01/home/JAD003/sxr01/axb64-sxr01/data/'):
-      dataset_root = '/jmain01/home/JAD003/sxr01/axb64-sxr01/data/'
-      print('On Jade, using the Jade root location %s...' % dataset_root)
-    elif os.path.isdir('/home/abrock/imagenet/train_imgs'):
-      dataset_root = '/home/abrock/imagenet/train_imgs'
-      print('On Robotarium, using the root location %s...' % dataset_root)
-    else:
-      print('No root directories found!')
-
   # Append /FILENAME.hdf5 to root if using hdf5
-  dataset_root += '%s' % root_dict[dataset]
+  dataset_root += '/%s' % root_dict[dataset]
   print('Using dataset root location %s' % dataset_root)
-
 
   which_dataset = dset_dict[dataset]
   norm_mean = [0.5,0.5,0.5]
   norm_std = [0.5,0.5,0.5]
   image_size = imsize_dict[dataset]
-
-  # HDF5 datasets have their own inbuilt transform
+  # For image folder datasets, name of the file where we store the precomputed
+  # image locations to avoid having to walk the dirs every time we load.
+  dataset_kwargs = {'index_filename': '%s_imgs.npz' % dataset}
+  
+  # HDF5 datasets have their own inbuilt transform, no need to train_transform  
   if 'hdf5' in dataset:
     train_transform = None
   else:
+    dat
     if augment:
       print('Data will be augmented...')
       if dataset in ['C10', 'C100']:
@@ -579,7 +562,7 @@ def get_data_loaders(dataset, dataset_root=None, augment=False, batch_size=64,
                      transforms.ToTensor(),
                      transforms.Normalize(norm_mean, norm_std)])
   train_set = which_dataset(root=dataset_root, transform=train_transform,
-                            load_in_mem=load_in_mem)
+                            load_in_mem=load_in_mem, **dataset_kwargs)
 
   # Prepare loader; the loaders list is for forward compatibility with
   # using validation / test splits.
@@ -754,6 +737,7 @@ def load_weights(G, D, state_dict, weights_root, experiment_name,
       torch.load('%s/%s.pth' % (root, join_strings('_', ['G_ema', name_suffix]))),
       strict=strict)
 
+
 ''' MetricsLogger originally stolen from VoxNet source code.
     Used for logging inception metrics'''
 class MetricsLogger(object):
@@ -899,14 +883,14 @@ def sample_sheet(G, classes_per_sheet, num_classes, samples_per_class, parallel,
     y = torch.arange(i * classes_per_sheet, (i + 1) * classes_per_sheet, device='cuda')
     for j in range(samples_per_class):
       if z_ is None:
-        z = torch.randn(classes_per_sheet, G.dim_z, device='cuda')
+        z_ = torch.randn(classes_per_sheet, G.dim_z, device='cuda')
       else:
         z_.sample_()
       with torch.no_grad():
         if parallel:
           o = nn.parallel.data_parallel(G, (z_[:classes_per_sheet], G.shared(y)))
         else:
-          o = G(z_, G.shared(y))
+          o = G(z_[:classes_per_sheet], G.shared(y))
 
       ims += [o.data.cpu()]
     # This line should properly unroll the images
@@ -976,19 +960,21 @@ def print_grad_norms(net):
 
 
 # Get singular values to log. This will use the state dict to find them
-# and substitute underscores for
+# and substitute underscores for dots.
 def get_SVs(net, prefix):
   d = net.state_dict()
   return {('%s_%s' % (prefix, key)).replace('.', '_') :
             float(d[key].item())
             for key in d if 'sv' in key}
+
+
 # Name an experiment based on its config
 def name_from_config(config):
   name = '_'.join([
   item for item in [
   'Big%s' % config['which_train_fn'],
   config['dataset'],
-  config['model'] if config['model'] != 'model' else None,
+  config['model'] if config['model'] != 'BigGAN' else None,
   'seed%d' % config['seed'],
   'Gch%d' % config['G_ch'],
   'Dch%d' % config['D_ch'],

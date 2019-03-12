@@ -1,3 +1,6 @@
+''' Datasets
+    This file contains definitions for our CIFAR, ImageFolder, and HDF5 datasets
+'''
 import os
 import os.path
 import sys
@@ -10,8 +13,7 @@ import torchvision.transforms as transforms
 from torchvision.datasets.utils import download_url, check_integrity
 import torch.utils.data as data
 from torch.utils.data import DataLoader
-
-# Stuff for full imagenet            
+         
 IMG_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm']
 
 
@@ -106,9 +108,12 @@ class ImageFolder(data.Dataset):
                loader=default_loader, load_in_mem=False, 
                index_filename='imagenet_imgs.npz', **kwargs):
     classes, class_to_idx = find_classes(root)
+    # Load pre-computed image directory walk
     if os.path.exists(index_filename):
       print('Loading pre-saved Index file %s...' % index_filename)
       imgs = np.load(index_filename)['imgs']
+    # If first time, walk the folder directory and save the 
+    # results to a pre-computed file.
     else:
       print('Generating  Index file %s...' % index_filename)
       imgs = make_dataset(root, class_to_idx)
@@ -171,19 +176,9 @@ class ImageFolder(data.Dataset):
     fmt_str += '{0}{1}'.format(tmp, self.target_transform.__repr__().replace('\n', '\n' + ' ' * len(tmp)))
     return fmt_str
         
-        
-# class ImageNetA(ImageFolder):
-    # def __init__(self, root, transform=None, target_transform=None,
-                 # loader=default_loader, load_in_mem=False,
-                 # train=True,download=False, validate_seed=0,
-                 # val_split=0):
-        # super(ImageNetA, self).__init__(root, transform, target_transform,
-                 # default_loader, load_in_mem, train, download, validate_seed,
-                 # val_split):
-                 
-                 
-# Imagenet at 256 with '/home/s1580274/scratch/ILSVRC256.hdf5'
 
+''' ILSVRC_HDF5: A dataset to support I/O from an HDF5 to avoid
+    having to load individual images all the time. '''
 import h5py as h5
 import torch
 class ILSVRC_HDF5(data.Dataset):
@@ -250,7 +245,7 @@ class CIFAR10(dset.CIFAR10):
   def __init__(self, root, train=True,
            transform=None, target_transform=None,
            download=True, validate_seed=0,
-           val_split=0, load_in_mem=True):
+           val_split=0, load_in_mem=True, **kwargs):
     self.root = os.path.expanduser(root)
     self.transform = transform
     self.target_transform = target_transform
@@ -264,9 +259,7 @@ class CIFAR10(dset.CIFAR10):
       raise RuntimeError('Dataset not found or corrupted.' +
                            ' You can use download=True to download it')
 
-    # now load the picked numpy arrays
-    
-    
+    # now load the picked numpy arrays    
     self.data = []
     self.labels= []
     for fentry in self.train_list:
@@ -294,15 +287,10 @@ class CIFAR10(dset.CIFAR10):
       
       # randomly grab 500 elements of each class
       np.random.seed(validate_seed)
-      
       self.val_indices = []           
-      
-       
-      
       for l_i in label_indices:
         self.val_indices += list(l_i[np.random.choice(len(l_i), int(len(self.data) * val_split) // (max(self.labels) + 1) ,replace=False)])
-
-        
+    
     if self.train=='validate':    
       self.data = self.data[self.val_indices]
       self.labels = list(np.asarray(self.labels)[self.val_indices])

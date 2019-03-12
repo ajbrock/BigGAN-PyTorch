@@ -18,7 +18,7 @@ def loss_hinge_dis(dis_fake, dis_real):
   loss_real = torch.mean(F.relu(1. - dis_real))
   loss_fake = torch.mean(F.relu(1. + dis_fake))
   return loss_real, loss_fake
-# def loss_hinge_dis(dis_fake, dis_real):
+# def loss_hinge_dis(dis_fake, dis_real): # This version returns a single loss
   # loss = torch.mean(F.relu(1. - dis_real))
   # loss += torch.mean(F.relu(1. + dis_fake))
   # return loss

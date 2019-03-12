@@ -1,7 +1,11 @@
-## Tensorflow inception score code
-# Derived from https://github.com/openai/improved-gan
-# Code derived from tensorflow/tensorflow/models/image/imagenet/classify_image.py
-# THIS CODE REQUIRES TENSORFLOW 1.3 or EARLIER to run in BATCH MODE
+''' Tensorflow inception score code
+Derived from https://github.com/openai/improved-gan
+Code derived from tensorflow/tensorflow/models/image/imagenet/classify_image.py
+THIS CODE REQUIRES TENSORFLOW 1.3 or EARLIER to run in PARALLEL BATCH MODE 
+
+To use this code, run sample.py on your model with --sample_npz, and then 
+pass the experiment name in the --experiment_name 
+'''
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -17,12 +21,10 @@ import numpy as np
 from six.moves import urllib
 import tensorflow as tf
 
-MODEL_DIR = '/home/s1580274/scratch'
+MODEL_DIR = ''
 DATA_URL = 'http://download.tensorflow.org/models/image/imagenet/inception-2015-12-05.tgz'
 softmax = None
 
-# Run on eddie with /home/s1580274/group/myconda/tensorflow/bin/python
-#fname='BigGAN_I128_hdf5_seed0_Gch64_Dch64_bs128_nDa4_nGa4_Glr1.0e-04_Dlr4.0e-04_Gnlrelu_Dnlrelu_Ginitxavier_Dinitxavier_Gattn64_Dattn64_Gshared_ema_SAGAN_bs128x4_ema'
 def prepare_parser():
   usage = 'Parser for TF1.3- Inception Score scripts.'
   parser = ArgumentParser(description=usage)
@@ -30,7 +32,7 @@ def prepare_parser():
     '--experiment_name', type=str, default='',
     help='Which experiment''s samples.npz file to pull and evaluate')
   parser.add_argument(
-    '--experiment_root', type=str, default='/home/s1580274/scratch/samples/',
+    '--experiment_root', type=str, default='samples',
     help='Default location where samples are stored (default: %(default)s)')
   parser.add_argument(
     '--batch_size', type=int, default=500,
@@ -110,13 +112,12 @@ def run(config):
       logits = tf.matmul(tf.squeeze(pool3), w)
       softmax = tf.nn.softmax(logits)
 
-  # if softmax is None:
+  # if softmax is None: # No need to functionalize like this.
   _init_inception()
 
   fname = '%s/%s/samples.npz' % (config['experiment_root'], config['experiment_name'])
   print('loading %s ...'%fname)
-  ims = np.load(fname)['x']# + '_samples.npz')['x']
-  # ims = 
+  ims = np.load(fname)['x']
   import time
   t0 = time.time()
   inc = get_inception_score(list(ims.swapaxes(1,2).swapaxes(2,3)), splits=10)

@@ -1,5 +1,18 @@
+''' Inception utilities
+    This file contains methods for calculating IS and FID, using either
+    the original numpy code or an accelerated fully-pytorch version that 
+    uses a fast newton-schulz approximation for the matrix sqrt. There are also
+    methods for acquiring a desired number of samples from the Generator,
+    and parallelizing the inbuilt PyTorch inception network.
+    
+    NOTE that Inception Scores and FIDs calculated using these methods will 
+    *not* be directly comparable to values calculated using the original TF
+    IS/FID code. You *must* use the TF model if you wish to report and compare
+    numbers. This code tends to produce IS values that are 5-10% lower than
+    those obtained through TF. 
+'''    
 import numpy as np
-from scipy import linalg # For FID
+from scipy import linalg # For numpy FID
 import time
 
 import torch
@@ -7,6 +20,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import Parameter as P
 from torchvision.models.inception import inception_v3
+
 
 # Module that wraps the inception network to enable use with dataparallel and
 # returning pool features and logits.
@@ -69,6 +83,7 @@ class WrapInception(nn.Module):
     # 1000 (num_classes)
     return pool, logits
 
+
 # A pytorch implementation of cov, from Modar M. Alfadly
 # https://discuss.pytorch.org/t/covariance-and-gradient-support/16217/2
 def torch_cov(m, rowvar=False):
@@ -103,9 +118,9 @@ def torch_cov(m, rowvar=False):
     mt = m.t()  # if complex: mt = m.t().conj()
     return fact * m.matmul(mt).squeeze()
 
+
 # Pytorch implementation of matrix sqrt, from Tsung-Yu Lin, and Subhransu Maji
 # https://github.com/msubhransu/matrix-sqrt 
-
 def sqrt_newton_schulz(A, numIters, dtype=None):
   with torch.no_grad():
     if dtype is None:
@@ -123,9 +138,9 @@ def sqrt_newton_schulz(A, numIters, dtype=None):
     sA = Y*torch.sqrt(normA).view(batchSize, 1, 1).expand_as(A)
   return sA
 
+
 # FID calculator from TTUR--consider replacing this with GPU-accelerated cov
 # calculations using torch?
-
 def numpy_calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
   """Numpy implementation of the Frechet Distance.
   Taken from https://github.com/bioinf-jku/TTUR
@@ -180,7 +195,7 @@ def numpy_calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
 
   out = diff.dot(diff) + np.trace(sigma1) + np.trace(sigma2) - 2 * tr_covmean
   return out
-  # # return () +
+
 
 def torch_calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
   """Pytorch implementation of the Frechet Distance.
@@ -214,6 +229,8 @@ def torch_calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
   out = (diff.dot(diff) +  torch.trace(sigma1) + torch.trace(sigma2)
          - 2 * torch.trace(covmean))
   return out
+
+
 # Calculate Inception Score mean + std given softmax'd logits and number of splits
 def calculate_inception_score(pred, num_splits=10):
   scores = []

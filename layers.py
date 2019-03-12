@@ -1,3 +1,6 @@
+''' Layers
+    This file contains various layers for the BigGAN models.
+'''
 import numpy as np
 import torch
 import torch.nn as nn
@@ -7,6 +10,7 @@ import torch.nn.functional as F
 from torch.nn import Parameter as P
 
 from sync_batchnorm import SynchronizedBatchNorm2d as SyncBN2d
+
 
 # Projection of x onto y
 def proj(x, y):
@@ -45,11 +49,13 @@ def power_iteration(W, u_, update=True, eps=1e-12):
     #svs += [torch.sum(F.linear(u, W.transpose(0, 1)) * v)]
   return svs, us, vs
 
+
 # Convenience passthrough function
 class identity(nn.Module):
   def forward(self, input):
     return input
  
+
 # Spectral normalization base class 
 class SN(object):
   def __init__(self, num_svs, num_itrs, num_outputs, transpose=False, eps=1e-12):
@@ -105,6 +111,7 @@ class SNConv2d(nn.Conv2d, SN):
     return F.conv2d(x, self.W_(), self.bias, self.stride, 
                     self.padding, self.dilation, self.groups)
 
+
 # Linear layer with spectral norm
 class SNLinear(nn.Linear, SN):
   def __init__(self, in_features, out_features, bias=True,
@@ -113,6 +120,7 @@ class SNLinear(nn.Linear, SN):
     SN.__init__(self, num_svs, num_itrs, out_features, eps=eps)
   def forward(self, x):
     return F.linear(x, self.W_(), self.bias)
+
 
 # Embedding layer with spectral norm
 # We use num_embeddings as the dim instead of embedding_dim here
@@ -319,7 +327,8 @@ class ccbn(nn.Module):
     s = 'out: {output_size}, in: {input_size},'
     s +=' cross_replica={cross_replica}'
     return s.format(**self.__dict__)
-    
+
+
 # Normal, non-class-conditional BN
 class bn(nn.Module):
   def __init__(self, output_size,  eps=1e-5, momentum=0.1,
@@ -355,15 +364,14 @@ class bn(nn.Module):
     else:
       return F.batch_norm(x, self.stored_mean, self.stored_var, self.gain,
                           self.bias, self.training, self.momentum, self.eps)
-   
+
+                          
 # Generator blocks
 # Note that this class assumes the kernel size and padding (and any other
 # settings) have been selected in the main generator module and passed in
 # through the which_conv arg. Similar rules apply with which_bn (the input
 # size [which is actually the number of channels of the conditional info] must 
 # be preselected)
-""" Andy's note: I changed activation to NONE to enforce passing in an activation
-"""
 class GBlock(nn.Module):
   def __init__(self, in_channels, out_channels,
                which_conv=nn.Conv2d, which_bn=bn, activation=None, 
@@ -401,8 +409,6 @@ class GBlock(nn.Module):
     
     
 # Residual block for the discriminator
-""" Andy's note: I changed activation to NONE to enforce passing in an activation
-"""
 class DBlock(nn.Module):
   def __init__(self, in_channels, out_channels, which_conv=SNConv2d, wide=True,
                preactivation=False, activation=None, downsample=None,):

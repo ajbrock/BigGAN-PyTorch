@@ -33,7 +33,7 @@ def _unsqueeze_ft(tensor):
 
 _ChildMessage = collections.namedtuple('_ChildMessage', ['sum', 'ssum', 'sum_size'])
 _MasterMessage = collections.namedtuple('_MasterMessage', ['sum', 'inv_std'])
-
+# _MasterMessage = collections.namedtuple('_MasterMessage', ['sum', 'ssum', 'sum_size'])
 
 class _SynchronizedBatchNorm(_BatchNorm):
     def __init__(self, num_features, eps=1e-5, momentum=0.1, affine=True):
@@ -45,32 +45,62 @@ class _SynchronizedBatchNorm(_BatchNorm):
         self._parallel_id = None
         self._slave_pipe = None
 
-    def forward(self, input):
+    def forward(self, input, gain=None, bias=None):
         # If it is not parallel computation or is in evaluation mode, use PyTorch's implementation.
         if not (self._is_parallel and self.training):
-            return F.batch_norm(
+            out = F.batch_norm(
                 input, self.running_mean, self.running_var, self.weight, self.bias,
                 self.training, self.momentum, self.eps)
+            if gain is not None:
+              out = out + gain
+            if bias is not None:
+              out = out + bias
+            return out
 
         # Resize the input to (B, C, -1).
         input_shape = input.size()
-        input = input.view(input.size(0), self.num_features, -1)
+        # print(input_shape)
+        input = input.view(input.size(0), input.size(1), -1)
 
         # Compute the sum and square-sum.
         sum_size = input.size(0) * input.size(2)
         input_sum = _sum_ft(input)
         input_ssum = _sum_ft(input ** 2)
-
         # Reduce-and-broadcast the statistics.
+        # print('it begins')
         if self._parallel_id == 0:
             mean, inv_std = self._sync_master.run_master(_ChildMessage(input_sum, input_ssum, sum_size))
         else:
             mean, inv_std = self._slave_pipe.run_slave(_ChildMessage(input_sum, input_ssum, sum_size))
-
+        # if self._parallel_id == 0:
+            # # print('here')
+            # sum, ssum, num = self._sync_master.run_master(_ChildMessage(input_sum, input_ssum, sum_size))
+        # else:
+            # # print('there')
+            # sum, ssum, num = self._slave_pipe.run_slave(_ChildMessage(input_sum, input_ssum, sum_size))
+        
+        # print('how2')
+        # num = sum_size
+        # print('Sum: %f, ssum: %f, sumsize: %f, insum: %f' %(float(sum.sum().cpu()), float(ssum.sum().cpu()), float(sum_size), float(input_sum.sum().cpu()))) 
+        # Fix the graph
+        # sum = (sum.detach() - input_sum.detach()) + input_sum
+        # ssum = (ssum.detach() - input_ssum.detach()) + input_ssum
+        
+        # mean = sum / num
+        # var = ssum / num - mean ** 2
+        # # var = (ssum - mean * sum) / num
+        # inv_std = torch.rsqrt(var + self.eps)
+        
         # Compute the output.
-        if self.affine:
+        if gain is not None:
+          # print('gaining')
+          # scale = _unsqueeze_ft(inv_std) * gain.squeeze(-1)
+          # shift = _unsqueeze_ft(mean) * scale - bias.squeeze(-1)
+          # output = input * scale - shift
+          output = (input - _unsqueeze_ft(mean)) * (_unsqueeze_ft(inv_std) * gain.squeeze(-1)) + bias.squeeze(-1)
+        elif self.affine:
             # MJY:: Fuse the multiplication for speed.
-            output = (input - _unsqueeze_ft(mean)) * _unsqueeze_ft(inv_std * self.weight) + _unsqueeze_ft(self.bias)
+            output = (input - _unsqueeze_ft(mean)) * _unsqueeze_ft(inv_std * self.weight) + _unsqueeze_ft(self.bias)        
         else:
             output = (input - _unsqueeze_ft(mean)) * _unsqueeze_ft(inv_std)
 
@@ -103,10 +133,14 @@ class _SynchronizedBatchNorm(_BatchNorm):
         mean, inv_std = self._compute_mean_std(sum_, ssum, sum_size)
 
         broadcasted = Broadcast.apply(target_gpus, mean, inv_std)
-
+        # print('a')
+        # print(type(sum_), type(ssum), type(sum_size), sum_.shape, ssum.shape, sum_size)
+        # broadcasted = Broadcast.apply(target_gpus, sum_, ssum, torch.tensor(sum_size).float().to(sum_.device))
+        # print('b')
         outputs = []
         for i, rec in enumerate(intermediates):
             outputs.append((rec[0], _MasterMessage(*broadcasted[i*2:i*2+2])))
+            # outputs.append((rec[0], _MasterMessage(*broadcasted[i*3:i*3+3])))
 
         return outputs
 
@@ -121,8 +155,8 @@ class _SynchronizedBatchNorm(_BatchNorm):
 
         self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * mean.data
         self.running_var = (1 - self.momentum) * self.running_var + self.momentum * unbias_var.data
-
-        return mean, bias_var.clamp(self.eps) ** -0.5
+        return mean, torch.rsqrt(bias_var + self.eps)
+        # return mean, bias_var.clamp(self.eps) ** -0.5
 
 
 class SynchronizedBatchNorm1d(_SynchronizedBatchNorm):

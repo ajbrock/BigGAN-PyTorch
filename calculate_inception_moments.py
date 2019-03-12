@@ -1,6 +1,11 @@
-# This script iterates over the dataset and calculates the moments of the 
-# activations of the Inception net (needed for FID), and also returns
-# the Inception Score of the training data.
+''' Calculate Inception Moments
+ This script iterates over the dataset and calculates the moments of the 
+ activations of the Inception net (needed for FID), and also returns
+ the Inception Score of the training data.
+ 
+ Note that if you don't shuffle the data, the IS of true data will be under-
+ estimated as it is label-ordered. By default, the data is not shuffled
+ so as to reduce non-determinism. '''
 import numpy as np
 import torch
 import torch.nn as nn
@@ -15,11 +20,11 @@ def prepare_parser():
   usage = 'Calculate and store inception metrics.'
   parser = ArgumentParser(description=usage)
   parser.add_argument(
-    '--dataset', type=str, default='I128',
+    '--dataset', type=str, default='I128_hdf5',
     help='Which Dataset to train on, out of I128, I256, C10, C100...'
          'Append _hdf5 to use the hdf5 version of the dataset. (default: %(default)s)')
   parser.add_argument(
-    '--dataset_root', type=str, default='/home/s1580274/scratch/data/',
+    '--dataset_root', type=str, default='data',
     help='Default location where data is stored (default: %(default)s)') 
   parser.add_argument(
     '--batch_size', type=int, default=64,
@@ -67,7 +72,8 @@ def run(config):
   print('Calculating inception metrics...')
   IS_mean, IS_std = inception_utils.calculate_inception_score(logits)
   print('Training data from dataset %s has IS of %5.5f +/- %5.5f' % (config['dataset'], IS_mean, IS_std))
-  # Prepare mu and sigma, save to disk
+  # Prepare mu and sigma, save to disk. Remove "hdf5" by default 
+  # (the FID code also knows to strip "hdf5")
   print('Calculating means and covariances...')
   mu, sigma = np.mean(pool, axis=0), np.cov(pool, rowvar=False)
   print('Saving calculated means and covariances to disk...')

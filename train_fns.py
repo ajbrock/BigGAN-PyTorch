@@ -1,5 +1,6 @@
-#train_fns.py
-# Functions for the main loop of training different conditional image models
+''' train_fns.py
+Functions for the main loop of training different conditional image models
+'''
 import torch
 import torch.nn as nn
 import torchvision
@@ -8,10 +9,13 @@ import os
 import utils
 import losses
 
+
+# Dummy training function for debugging
 def dummy_training_function():
   def train(x, y):
     return {}
   return train
+
 
 def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
   def train(x, y):
@@ -86,7 +90,10 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     return out
   return train
   
-# Prepare save and sample function
+''' This function takes in the model, saves the weights (multiple copies if 
+    requested), and prepares sample sheets: one consisting of samples given
+    a fixed noise seed (to show how the model evolves throughout training),
+    a set of full conditional sample sheets, and a set of interp sheets. '''
 def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y, 
                     state_dict, config, experiment_name):
   utils.save_weights(G, D, state_dict, config['weights_root'],
@@ -146,7 +153,10 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
 
 
   
-  # prepare test function
+''' This function runs the inception metrics code, checks if the results
+    are an improvement over the previous best (either in IS or FID, 
+    user-specified), logs the results, and saves a best_ copy if it's an 
+    improvement. '''
 def test(G, D, G_ema, state_dict, config, sample, get_inception_metrics,
          experiment_name, test_log):
   print('Gathering inception metrics...')

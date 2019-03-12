@@ -145,7 +145,7 @@ def run(config):
   # If parallel, parallelize the GD module
   if config['parallel']:
     GD = nn.DataParallel(GD)
-    if config['BN_sync'] or config['cross_replica']:
+    if config['cross_replica']:
       patch_replication_callback(GD)
 
   # Prepare loggers for stats; metrics holds test metrics,
