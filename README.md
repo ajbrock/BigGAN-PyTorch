@@ -15,7 +15,7 @@ You will need:
 - tqdm, scipy, and h5py
 - The ImageNet training set
 
-First, you may optionally prepare a pre-processed HDF5 version of your target dataset for faster I/O. Following this (or not), you'll need the Inception moments needed to calculate FID. This can be done by modifying and running
+First, you may optionally prepare a pre-processed HDF5 version of your target dataset for faster I/O. Following this (or not), you'll need the Inception moments needed to calculate FID. These can both be done by modifying and running
 
 ```sh
 sh scripts/utils/prepare_data.sh
@@ -30,17 +30,17 @@ full-sized BigGAN model with a batch size of 256 and 8 gradient accumulations, f
 You will first need to figure out the maximum batch size your setup can support. The pre-trained models provided here were trained on 8xV100 (16GB VRAM each) which can support slightly more than the BS256 used by default.
 Once you've determined this, you should modify the script so that the batch size times the number of gradient accumulations is equal to your desired total batch size (BigGAN defaults to 2048).
 
-Note also that this script also uses the `--load_in_mem` which loads the entire (~64GB) I128.hdf5 file into RAM for faster data loading. If you don't have enough RAM to support this (probably 96GB+), remove this argument.
+Note also that this script uses the `--load_in_mem` arg, which loads the entire (~64GB) I128.hdf5 file into RAM for faster data loading. If you don't have enough RAM to support this (probably 96GB+), remove this argument.
 
 During training, this script will output logs with training metrics and test metrics, will save multiple copies (2 most recent and 5 highest-scoring) of the model weights/optimizer params, and will produce samples and interpolations every time it saves weights.
 The logs folder contains scripts to process these logs and plot the results using MATLAB (sorry not sorry).
 
-After training, one can use `sample.py` to produce additional samples and interpolations, test with different truncation values, batch sizes, number of standing stat accumulations, etc. See the `sample_BigGAN_256x8.sh` script for an example.
+After training, one can use `sample.py` to produce additional samples and interpolations, test with different truncation values, batch sizes, number of standing stat accumulations, etc. See the `sample_BigGAN_bs256x8.sh` script for an example.
 
 By default, everything is saved to weights/samples/logs/data folders which are assumed to be in the same folder as this repo.
 You can point all of these to a different base folder using the `--base_root` argument, or pick specific locations for each of these with their respective arguments (e.g. `--logs_root`).
 
-There are scripts to run a model on CIFAR, and to run BigGAN-deep, SA-GAN (with EMA) and SN-GAN on ImageNet. The SA-GAN code assumes you have 4xTitanX (or equivalent in terms of GPU RAM) and will run with a batch size of 128 and 2 gradient accumulations.
+Additionally, we include scripts to run a model on CIFAR, and to run BigGAN-deep, SA-GAN (with EMA) and SN-GAN on ImageNet. The SA-GAN code assumes you have 4xTitanX (or equivalent in terms of GPU RAM) and will run with a batch size of 128 and 2 gradient accumulations.
 
 
 ## Pretrained models
@@ -110,9 +110,10 @@ Want to work on or improve this code? There are a couple things this repo would 
 See [This directory](https://gist.github.com/yrevar/942d3a0ac09ec9e5eb3a) for ImageNet labels.
 
 ## Acknowledgments
-We would like to thank Jiahui Yu and Ming-Yu Liu of NVIDIA for helping run experiments. Thanks to Google for the generous cloud credit donations.
+Thanks to Google for the generous cloud credit donations.
 
-[SyncBN](https://github.com/vacancy/Synchronized-BatchNorm-PyTorch)] by Jiayuan Mao and Tete Xiao.
+[SyncBN](https://github.com/vacancy/Synchronized-BatchNorm-PyTorch) by Jiayuan Mao and Tete Xiao.
+
 [Progress bar](https://github.com/Lasagne/Recipes/tree/master/papers/densenet) originally from Jan Schlüter.
 
 Test metrics logger from [VoxNet.](https://github.com/dimatura/voxnet)

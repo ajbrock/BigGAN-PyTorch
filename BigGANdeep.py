@@ -59,7 +59,7 @@ class GBlock(nn.Module):
       h = self.upsample(h)
       x = self.upsample(x)
     # 3x3 convs
-    h = self.conv2(self.activation(self.bn2(h, y)))
+    h = self.conv2(h)
     h = self.conv3(self.activation(self.bn3(h, y)))
     # Final 1x1 conv
     h = self.conv4(self.activation(self.bn4(h, y)))
