@@ -112,7 +112,7 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
   
   # Accumulate standing statistics?
   if config['accumulate_stats']:
-    utils.accumulate_stats(G_ema if config['ema'] and config['use_ema'] else G,
+    utils.accumulate_standing_stats(G_ema if config['ema'] and config['use_ema'] else G,
                            z_, y_, config['n_classes'],
                            config['num_standing_accumulations'])
   
@@ -161,7 +161,7 @@ def test(G, D, G_ema, state_dict, config, sample, get_inception_metrics,
          experiment_name, test_log):
   print('Gathering inception metrics...')
   if config['accumulate_stats']:
-    utils.accumulate_stats(G_ema if config['ema'] and config['use_ema'] else G,
+    utils.accumulate_standing_stats(G_ema if config['ema'] and config['use_ema'] else G,
                            z_, y_, config['n_classes'],
                            config['num_standing_accumulations'])
   IS_mean, IS_std, FID = get_inception_metrics(sample, 
