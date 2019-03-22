@@ -32,11 +32,12 @@ Once you've determined this, you should modify the script so that the batch size
 
 Note also that this script uses the `--load_in_mem` arg, which loads the entire (~64GB) I128.hdf5 file into RAM for faster data loading. If you don't have enough RAM to support this (probably 96GB+), remove this argument.
 
-During training, this script will output logs with training metrics and test metrics, will save multiple copies (2 most recent and 5 highest-scoring) of the model weights/optimizer params, and will produce samples and interpolations every time it saves weights.
-The logs folder contains scripts to process these logs and plot the results using MATLAB (sorry not sorry).
 
 ## Metrics and Sampling
 ![I believe I can fly!](imgs/interp_sample.jpg?raw=true "I believe I can fly!")
+
+During training, this script will output logs with training metrics and test metrics, will save multiple copies (2 most recent and 5 highest-scoring) of the model weights/optimizer params, and will produce samples and interpolations every time it saves weights.
+The logs folder contains scripts to process these logs and plot the results using MATLAB (sorry not sorry).
 
 After training, one can use `sample.py` to produce additional samples and interpolations, test with different truncation values, batch sizes, number of standing stat accumulations, etc. See the `sample_BigGAN_bs256x8.sh` script for an example.
 
