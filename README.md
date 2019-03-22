@@ -44,12 +44,13 @@ Additionally, we include scripts to run a model on CIFAR, and to run BigGAN-deep
 
 
 ## Pretrained models
-We include three pretrained model checkpoints (with G, D, the EMA copy of G, the optimizers, and the state dict):
+We include two pretrained model checkpoints (with G, D, the EMA copy of G, the optimizers, and the state dict):
 - The main checkpoint is for a BigGAN trained on ImageNet at 128x128, using BS256 and 8 gradient accumulations, taken just before collapse: LINK
-- Second, we include a smaller (channel multiplier 64) BigGAN trained with the same settings: LINK
-- Finally, we include an earlier checkpoint of the first model (100k iters), at high performance but well before collapse, which may be easier to fine-tune: LINK
+- An earlier checkpoint of the first model (100k G iters), at high performance but well before collapse, which may be easier to fine-tune: LINK
 
 --graphic for main checkpoint--
+
+Pretrained models for Places-365 coming soon.
 
 This repo also contains scripts for porting the original TFHub BigGAN Generator weights to PyTorch. See the scripts in the TFHub folder for more details.
 
