@@ -52,8 +52,7 @@ We include two pretrained model checkpoints (with G, D, the EMA copy of G, the o
 - The main checkpoint is for a BigGAN trained on ImageNet at 128x128, using BS256 and 8 gradient accumulations, taken just before collapse, with a TF Inception Score of 97.35 +/- 1.79: [LINK](https://drive.google.com/open?id=1nAle7FCVFZdix2--ks0r5JBkFnKw8ctW)
 - An earlier checkpoint of the first model (100k G iters), at high performance but well before collapse, which may be easier to fine-tune: LINK
 
-![PyTorch Inception Score](imgs/IS.svg)
-<img src="imgs/IS.svg">
+![PyTorch Inception Score](imgs/IS.svg) ![PyTorch FID](imgs/FID.svg)
 
 Pretrained models for Places-365 coming soon.
 
