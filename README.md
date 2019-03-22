@@ -35,6 +35,9 @@ Note also that this script uses the `--load_in_mem` arg, which loads the entire 
 During training, this script will output logs with training metrics and test metrics, will save multiple copies (2 most recent and 5 highest-scoring) of the model weights/optimizer params, and will produce samples and interpolations every time it saves weights.
 The logs folder contains scripts to process these logs and plot the results using MATLAB (sorry not sorry).
 
+## Metrics and Sampling
+![I believe I can fly!](imgs/interp_sample.jpg?raw=true "I believe I can fly!")
+
 After training, one can use `sample.py` to produce additional samples and interpolations, test with different truncation values, batch sizes, number of standing stat accumulations, etc. See the `sample_BigGAN_bs256x8.sh` script for an example.
 
 By default, everything is saved to weights/samples/logs/data folders which are assumed to be in the same folder as this repo.
@@ -48,11 +51,12 @@ These scores are different from the scores you would get using the official TF i
 Run sample.py on your model, with the `--sample_npz` argument, then run inception_tf13 to calculate the actual TensorFlow IS. Note that you will need to have TensorFlow 1.3 or earlier installed, as TF1.4+ breaks the original IS code.
 
 ## Pretrained models
+![PyTorch Inception Score and FID](imgs/IS_FID.png)
 We include two pretrained model checkpoints (with G, D, the EMA copy of G, the optimizers, and the state dict):
 - The main checkpoint is for a BigGAN trained on ImageNet at 128x128, using BS256 and 8 gradient accumulations, taken just before collapse, with a TF Inception Score of 97.35 +/- 1.79: [LINK](https://drive.google.com/open?id=1nAle7FCVFZdix2--ks0r5JBkFnKw8ctW)
 - An earlier checkpoint of the first model (100k G iters), at high performance but well before collapse, which may be easier to fine-tune: [LINK](https://drive.google.com/open?id=1dmZrcVJUAWkPBGza_XgswSuT-UODXZcO)
 
-![PyTorch Inception Score and FID](imgs/IS_FID.png)
+
 
 Pretrained models for Places-365 coming soon.
 
