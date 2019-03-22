@@ -1,5 +1,5 @@
 # BigGAN-PyTorch
-The author's authorized and officially unofficial PyTorch BigGAN implementation.
+The author's officially unofficial PyTorch BigGAN implementation.
 
 ![Dogball? Dogball!](imgs/header_image.jpg?raw=true "Dogball? Dogball!")
 
@@ -40,15 +40,20 @@ After training, one can use `sample.py` to produce additional samples and interp
 By default, everything is saved to weights/samples/logs/data folders which are assumed to be in the same folder as this repo.
 You can point all of these to a different base folder using the `--base_root` argument, or pick specific locations for each of these with their respective arguments (e.g. `--logs_root`).
 
-Additionally, we include scripts to run a model on CIFAR, and to run BigGAN-deep, SA-GAN (with EMA) and SN-GAN on ImageNet. The SA-GAN code assumes you have 4xTitanX (or equivalent in terms of GPU RAM) and will run with a batch size of 128 and 2 gradient accumulations.
+We include scripts to run BigGAN-deep, but we have not fully trained a model using them, so consider them untested. Additionally, we include scripts to run a model on CIFAR, and to run SA-GAN (with EMA) and SN-GAN on ImageNet. The SA-GAN code assumes you have 4xTitanX (or equivalent in terms of GPU RAM) and will run with a batch size of 128 and 2 gradient accumulations.
 
+## An Important Note on Inception Metrics
+This repo uses the PyTorch in-built inception network to calculate IS and FID. 
+These scores are different from the scores you would get using the official TF inception code, and are only for monitoring purposes!
+Run sample.py on your model, with the `--sample_npz` argument, then run inception_tf13 to calculate the actual TensorFlow IS. Note that you will need to have TensorFlow 1.3 or earlier installed, as TF1.4+ breaks the original IS code.
 
 ## Pretrained models
 We include two pretrained model checkpoints (with G, D, the EMA copy of G, the optimizers, and the state dict):
-- The main checkpoint is for a BigGAN trained on ImageNet at 128x128, using BS256 and 8 gradient accumulations, taken just before collapse: LINK
+- The main checkpoint is for a BigGAN trained on ImageNet at 128x128, using BS256 and 8 gradient accumulations, taken just before collapse, with a TF Inception Score of 97.35 +/- 1.79: [LINK](https://drive.google.com/open?id=1nAle7FCVFZdix2--ks0r5JBkFnKw8ctW)
 - An earlier checkpoint of the first model (100k G iters), at high performance but well before collapse, which may be easier to fine-tune: LINK
 
---graphic for main checkpoint--
+![PyTorch Inception Score](imgs/IS.svg)
+<img src="imgs/IS.svg">
 
 Pretrained models for Places-365 coming soon.
 
@@ -84,10 +89,6 @@ The two variants we tried (a custom, naive one and the one included in this repo
 - Gradient accumulation means that we update the SV estimates and the BN statistics 8 times more frequently. This means that the BN stats are much closer to standing stats, and that the singular value estimates tend to be more accurate.
 Because of this, we measure metrics by default with G in test mode (using the BatchNorm running stat estimates instead of computing standing stats as in the paper). We do still support standing stats (see the sample.sh scripts).
 This could also conceivably result in gradients from the earlier accumulations being stale, but in practice this does not appear to be a problem.
-- This repo uses the PyTorch in-built inception network to calculate IS and FID. 
-These scores are different from the scores you would get using the official TF inception code, and are only for monitoring purposes!
-IS using the PyTorch net tends to be 5-10% lower than using the official TF net.
-Run sample.py on your model, with the `--sample_npz` argument, then run inception_tf13 to calculate the actual TF IS. Note that you will need to have TensorFlow 1.3 or earlier installed, as TF1.4+ breaks the original IS code.
 - The currently provided pretrained models were not trained with orthogonal regularization. Training without ortho reg seems to increase the probability that models will not be amenable to truncation,
 but it looks like this particular model got a winning ticket. Regardless, we provide two highly optimized (fast and minimal memory consumption) ortho reg implementations which directly compute the ortho reg. gradients.
 
@@ -109,6 +110,17 @@ Want to work on or improve this code? There are a couple things this repo would 
 
 ## Misc Notes
 See [This directory](https://gist.github.com/yrevar/942d3a0ac09ec9e5eb3a) for ImageNet labels.
+If you use this code, please cite
+```text
+@inproceedings{
+brock2018large,
+title={Large Scale {GAN} Training for High Fidelity Natural Image Synthesis},
+author={Andrew Brock and Jeff Donahue and Karen Simonyan},
+booktitle={International Conference on Learning Representations},
+year={2019},
+url={https://openreview.net/forum?id=B1xsqj09Fm},
+}
+```
 
 ## Acknowledgments
 Thanks to Google for the generous cloud credit donations.

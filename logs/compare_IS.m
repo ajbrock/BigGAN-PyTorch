@@ -10,7 +10,7 @@ s = {};
 d = dir();
 j = 1;
 for i = 1:length(d)
-    if  any(strfind(d(i).name,'.jsonl'))%any(strfind(d(i).name,'I128')) && %&& any(strfind(d(i).name,'LARS'))
+    if  any(strfind(d(i).name,'.jsonl'))
         s = [s; d(i).name];
     end
 end

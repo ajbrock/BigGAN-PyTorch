@@ -6,7 +6,7 @@ fclose all;
 
 
 %% Get all training logs for a given run
-target_dir = 'new\Jade_BigGAN_B1_bs256x8_fp32';
+target_dir = '.';
 s = {};
 nm = {};
 d = dir(target_dir);
@@ -103,7 +103,7 @@ for i = 1:3
 % plot(losses{i,1}, losses{i,2},'color', losses{i,4}, 'HandleVisibility','off');
 plot(losses{i,1},losses{i,3},'color',losses{i,5});
 end
-clickableLegend(legendL, 'Interpreter', 'none'); title('Losses'); xlabel('Generator itr'); ylabel('loss'); axis([0, max(s{end,2}), -1, 4]);
+legend(legendL, 'Interpreter', 'none'); title('Losses'); xlabel('Generator itr'); ylabel('loss'); axis([0, max(s{end,2}), -1, 4]);
 
-figure(2); clickableLegend(legendG,'Interpreter','none'); title('Singular Values in G'); xlabel('Generator itr'); ylabel('SV0');
-figure(3); clickableLegend(legendD, 'Interpreter', 'none'); title('Singular Values in D'); xlabel('Generator itr'); ylabel('SV0');
+figure(2); legend(legendG,'Interpreter','none'); title('Singular Values in G'); xlabel('Generator itr'); ylabel('SV0');
+figure(3); legend(legendD, 'Interpreter', 'none'); title('Singular Values in D'); xlabel('Generator itr'); ylabel('SV0');

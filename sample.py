@@ -153,7 +153,7 @@ def run(config):
       outstring += 'with batch size %d, ' % G_batch_size
     if config['accumulate_stats']:
       outstring += 'using %d standing stat accumulations, ' % config['num_standing_accumulations']
-    outstring += 'Itr %d: Inception Score is %3.3f +/- %3.3f, FID is %5.4f' % (state_dict['itr'], IS_mean, IS_std, FID)
+    outstring += 'Itr %d: PYTORCH UNOFFICIAL Inception Score is %3.3f +/- %3.3f, PYTORCH UNOFFICIAL FID is %5.4f' % (state_dict['itr'], IS_mean, IS_std, FID)
     print(outstring)
   if config['sample_inception_metrics']: 
     print('Calculating Inception metrics...')

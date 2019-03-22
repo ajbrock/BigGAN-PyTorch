@@ -4,47 +4,9 @@
     "Large-Scale GAN Training for High Fidelity Natural Image Synthesis,"
     by A. Brock, J. Donahue, and K. Simonyan (arXiv 1809.11096).
 
-    The original code is written in TensorFlow and deeply integrated with
-    the Google infrastructure, such that open sourcing the training code would
-    require an inordinate amount of time and effort. This project is my own
-    personal catharsis, and in some ways is research into whether it's possible
-    to replicate the results (my own results) with an order of magnitude
-    less compute (128 TPU for a 128x128 model; I'm going to be trying on
-    4xTitan X).
-
-    Differences between this code and the original code are primarily in small
-    details (I'm coding off the top of my head and without the original code
-    as reference, so we'll see how it goes). The main change is that this code
-    relies on gradient accumulation to spoof large minibatches (megabatches?).
-    This is, however, not precisely equivalent, as we employ cross-replica
-    BatchNorm, meaning the activation moments will be calculated wrt subsets
-    of the megabatch. This code is also not going to have any of the research
-    bells and whistles that the original code does--this is designed to be a
-    sleek, straightforward, and readable implementation that practitioners can
-    use, rely on as a reference, and hopefully build upon. Most of the things
-    listed in the negative results appendix of the paper are options still
-    available in the internal code, but will not be available here.
-
     Let's go.
 """
 
-
-
-
-# Instructions: first, accumulate inception metrics for your chosen dataset by
-# running python calculate_inception_moments.py. This will use the default PyTorch
-# inception model to compute the IS of your training data (by default
-# ImageNet @ 128x128 pixels) and the feature moments needed for FID.
-
-
-# Design notes: In this code I pass around the full config dict a lot by
-# matching up kwargs in the functions they're used in. This slightly reduces
-# readability from the main script but makes it easier to change this script
-# by reducing the number of places one needs to update the code whenever a
-# new config option is added. It also saves space in the main script <_<
-
-# How to use:
-# Call . load.sh on eddie first
 import os
 import functools
 import math
