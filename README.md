@@ -1,5 +1,5 @@
 # BigGAN-PyTorch
-The author's officially unofficial PyTorch BigGAN implementation.
+The authors' officially unofficial PyTorch BigGAN implementation.
 
 ![Dogball? Dogball!](imgs/header_image.jpg?raw=true "Dogball? Dogball!")
 
@@ -50,9 +50,9 @@ Run sample.py on your model, with the `--sample_npz` argument, then run inceptio
 ## Pretrained models
 We include two pretrained model checkpoints (with G, D, the EMA copy of G, the optimizers, and the state dict):
 - The main checkpoint is for a BigGAN trained on ImageNet at 128x128, using BS256 and 8 gradient accumulations, taken just before collapse, with a TF Inception Score of 97.35 +/- 1.79: [LINK](https://drive.google.com/open?id=1nAle7FCVFZdix2--ks0r5JBkFnKw8ctW)
-- An earlier checkpoint of the first model (100k G iters), at high performance but well before collapse, which may be easier to fine-tune: LINK
+- An earlier checkpoint of the first model (100k G iters), at high performance but well before collapse, which may be easier to fine-tune: [LINK](https://drive.google.com/open?id=1dmZrcVJUAWkPBGza_XgswSuT-UODXZcO)
 
-![PyTorch Inception Score](imgs/IS.svg) ![PyTorch FID](imgs/FID.svg)
+![PyTorch Inception Score and FID](imgs/IS_FID.png)
 
 Pretrained models for Places-365 coming soon.
 
@@ -74,7 +74,7 @@ To use your own training function (e.g. train a BigVAE): either modify train_fns
 
 
 ## Neat Stuff
-- We include the full training and metrics logs here for reference. I've found that one of the hardest things about re-implementing a paper can be checking if the logs line up early in training,
+- We include the full training and metrics logs [here](https://drive.google.com/open?id=1ZhY9Mg2b_S4QwxNmt57aXJ9FOC3ZN1qb) for reference. I've found that one of the hardest things about re-implementing a paper can be checking if the logs line up early in training,
 especially if training takes multiple weeks. Hopefully these will be helpful for future work.
 - We include an accelerated FID calculation--the original scipy version can require upwards of 10 minutes to calculate the matrix sqrt, this version uses an accelerated PyTorch version to calculate it in under a second.
 - We include an accelerated, low-memory consumption ortho reg implementation.
