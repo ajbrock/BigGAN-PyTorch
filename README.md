@@ -1,5 +1,5 @@
 # BigGAN-PyTorch
-The authors' officially unofficial PyTorch BigGAN implementation.
+The author's officially unofficial PyTorch BigGAN implementation.
 
 ![Dogball? Dogball!](imgs/header_image.jpg?raw=true "Dogball? Dogball!")
 
