@@ -114,6 +114,7 @@ Want to work on or improve this code? There are a couple things this repo would 
 
 ## Misc Notes
 See [This directory](https://gist.github.com/yrevar/942d3a0ac09ec9e5eb3a) for ImageNet labels.
+
 If you use this code, please cite
 ```text
 @inproceedings{
