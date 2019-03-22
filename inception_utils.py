@@ -301,6 +301,7 @@ def prepare_inception_metrics(dataset, parallel, no_fid=False):
         print('Covariances calculated, getting FID...')
       if use_torch:
         FID = torch_calculate_frechet_distance(mu, sigma, torch.tensor(data_mu).float().cuda(), torch.tensor(data_sigma).float().cuda())
+        FID = float(FID.cpu().numpy())
       else:
         FID = numpy_calculate_frechet_distance(mu.cpu().numpy(), sigma.cpu().numpy(), data_mu, data_sigma)
     # Delete mu, sigma, pool, logits, and labels, just in case

@@ -12,7 +12,7 @@ This code is by Andy Brock and Alex Andonian.
 You will need:
 
 - [PyTorch](https://PyTorch.org/), version 1.0.1
-- tqdm, scipy, and h5py
+- tqdm, numpy, scipy, and h5py
 - The ImageNet training set
 
 First, you may optionally prepare a pre-processed HDF5 version of your target dataset for faster I/O. Following this (or not), you'll need the Inception moments needed to calculate FID. These can both be done by modifying and running
@@ -92,11 +92,11 @@ but it looks like this particular model got a winning ticket. Regardless, we pro
 
 ## A Note On The Design Of This Repo
 This code is designed from the ground up to serve as an extensible, hackable base for further research code. 
-I've put a lot of thought into making sure the abstractions are the *right* thickness for how I do research--not so thick as to be impenetrable, but not so thin as to be useless.
+We've put a lot of thought into making sure the abstractions are the *right* thickness for research--not so thick as to be impenetrable, but not so thin as to be useless.
 The key idea is that if you want to experiment with a SOTA setup and make some modification (try out your own new loss function, architecture, self-attention block, etc) you should be able to easily do so just by dropping your code in one or two places, without having to worry about the rest of the codebase.
 Things like the use of self.which_conv and functools.partial in the BigGAN.py model definition were put together with this in mind, as was the design of the Spectral Norm class inheritance.
 
-With that said, this is a somewhat large codebase for a single project. While I tried to be thorough with the comments, if there's something you think could be more clear, better written, or better refactored, please feel free to raise an issue or a pull request.
+With that said, this is a somewhat large codebase for a single project. While we tried to be thorough with the comments, if there's something you think could be more clear, better written, or better refactored, please feel free to raise an issue or a pull request.
 
 ## Feature Requests
 Want to work on or improve this code? There are a couple things this repo would benefit from, but which don't yet work.

@@ -82,9 +82,9 @@ def default_loader(path):
 class ImageFolder(data.Dataset):
   """A generic data loader where the images are arranged in this way: ::
 
-      root/dog/xxx.png
-      root/dog/xxy.png
-      root/dog/xxz.png
+      root/dogball/xxx.png
+      root/dogball/xxy.png
+      root/dogball/xxz.png
 
       root/cat/123.png
       root/cat/nsdf3.png

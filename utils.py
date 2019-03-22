@@ -392,7 +392,9 @@ def add_sample_parser(parser):
     help='Get inception metrics with a range of variances?'
          'To use this, specify a startpoint, step, and endpoint, e.g. '
          '--sample_trunc_curves 0.2_0.1_1.0 for a startpoint of 0.2, '
-         ' endpoint of 1.0, and stepsize of 1.0. (default: %(default)s)')
+         'endpoint of 1.0, and stepsize of 1.0.  Note that this is '
+         'not exactly identical to using tf.truncated_normal, but should '
+         'have approximately the same effect. (default: %(default)s)')
   parser.add_argument(
     '--sample_inception_metrics', action='store_true', default=False,
     help='Calculate Inception metrics with sample.py? (default: %(default)s)')  
@@ -1013,7 +1015,7 @@ def name_from_config(config):
   config['name_suffix'] if config['name_suffix'] else None,
   ]
   if item is not None])
-  # Instead of a d
+  # dogball
   if config['hashname']:
     return hashname(name)
   else:

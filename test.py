@@ -1271,3 +1271,16 @@ varh = y2h - yh**2
 varm = y2m - ym**2
 varm2 =y2m.half() - yh ** 2
 torch.mean(torch.abs(var-varh.float())), torch.mean(torch.abs(var.half()-varh)), torch.mean(torch.abs(var-varm)), torch.mean(torch.abs(var-varm2.float()))
+
+
+''' test tf FID '''
+import numpy as np
+import torch
+import inception_utils as iu
+trn = np.load('fid_stats_imagenet_train.npz')
+vld = np.load('fid_stats_imagenet_valid.npz')
+sample_stats = np.load('/home/s1580274/scratch/samples/Jade_BigGAN_B1_bs256x8_fp32/TF_pool.npz')
+which = trn
+data_mu, data_sigma = torch.tensor(which['mu']).float().cuda(), torch.tensor(which['sigma']).float().cuda()
+sample_mu, sample_sigma = torch.tensor(sample_stats['pool_mean']).float().cuda(), torch.tensor(sample_stats['pool_var']).float().cuda()
+iu.torch_calculate_frechet_distance(data_mu, data_sigma, sample_mu, sample_sigma)

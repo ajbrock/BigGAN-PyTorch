@@ -4,7 +4,8 @@ Code derived from tensorflow/tensorflow/models/image/imagenet/classify_image.py
 THIS CODE REQUIRES TENSORFLOW 1.3 or EARLIER to run in PARALLEL BATCH MODE 
 
 To use this code, run sample.py on your model with --sample_npz, and then 
-pass the experiment name in the --experiment_name 
+pass the experiment name in the --experiment_name.
+This code also saves pool3 stats to an npz file for FID calculation
 '''
 from __future__ import absolute_import
 from __future__ import division
@@ -56,13 +57,14 @@ def run(config):
       inps.append(np.expand_dims(img, 0))
     bs = config['batch_size']
     with tf.Session() as sess:
-      preds = []
+      preds, pools = [], []
       n_batches = int(math.ceil(float(len(inps)) / float(bs)))
       for i in trange(n_batches):
         inp = inps[(i * bs):min((i + 1) * bs, len(inps))]
         inp = np.concatenate(inp, 0)
-        pred = sess.run(softmax, {'ExpandDims:0': inp})
+        pred, pool = sess.run([softmax, pool3], {'ExpandDims:0': inp})
         preds.append(pred)
+        pools.append(pool)
       preds = np.concatenate(preds, 0)
       scores = []
       for i in range(splits):
@@ -70,10 +72,10 @@ def run(config):
         kl = part * (np.log(part) - np.log(np.expand_dims(np.mean(part, 0), 0)))
         kl = np.mean(np.sum(kl, 1))
         scores.append(np.exp(kl))
-      return np.mean(scores), np.std(scores)
+      return np.mean(scores), np.std(scores), np.squeeze(np.concatenate(pools, 0))
   # Init inception
   def _init_inception():
-    global softmax
+    global softmax, pool3
     if not os.path.exists(MODEL_DIR):
       os.makedirs(MODEL_DIR)
     filename = DATA_URL.split('/')[-1]
@@ -120,9 +122,11 @@ def run(config):
   ims = np.load(fname)['x']
   import time
   t0 = time.time()
-  inc = get_inception_score(list(ims.swapaxes(1,2).swapaxes(2,3)), splits=10)
+  inc_mean, inc_std, pool_activations = get_inception_score(list(ims.swapaxes(1,2).swapaxes(2,3)), splits=10)
   t1 = time.time()
-  print('Inception took %3f seconds, score of %3f +/- %3f.'%(t1-t0, inc[0], inc[1]))
+  print('Saving pool to numpy file for FID calculations...')
+  np.savez('%s/%s/TF_pool.npz' % (config['experiment_root'], config['experiment_name']), **{'pool_mean': np.mean(pool_activations,axis=0), 'pool_var': np.cov(pool_activations, rowvar=False)})
+  print('Inception took %3f seconds, score of %3f +/- %3f.'%(t1-t0, inc_mean, inc_std))
 def main():
   # parse command line and run
   parser = prepare_parser()
