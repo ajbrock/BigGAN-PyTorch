@@ -543,7 +543,6 @@ def get_data_loaders(dataset, dataset_root=None, augment=False, batch_size=64,
   if 'hdf5' in dataset:
     train_transform = None
   else:
-    dat
     if augment:
       print('Data will be augmented...')
       if dataset in ['C10', 'C100']:
