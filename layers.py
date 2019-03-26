@@ -258,12 +258,12 @@ class myBN(nn.Module):
 # Simple function to handle groupnorm norm stylization                      
 def groupnorm(x, norm_style):
   # If number of channels specified in norm_style:
-  if 'ch' in self.norm_style:
-    ch = int(self.norm_style.split('_')[-1])
+  if 'ch' in norm_style:
+    ch = int(norm_style.split('_')[-1])
     groups = max(int(x.shape[1]) // ch, 1)
   # If number of groups specified in norm style
-  elif 'grp' in self.norm_style:
-    groups = int(self.norm_style.split('_')[-1])
+  elif 'grp' in norm_style:
+    groups = int(norm_style.split('_')[-1])
   # If neither, default to groups = 16
   else:
     groups = 16

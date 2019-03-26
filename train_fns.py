@@ -157,7 +157,7 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
     are an improvement over the previous best (either in IS or FID, 
     user-specified), logs the results, and saves a best_ copy if it's an 
     improvement. '''
-def test(G, D, G_ema, state_dict, config, sample, get_inception_metrics,
+def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
          experiment_name, test_log):
   print('Gathering inception metrics...')
   if config['accumulate_stats']:

@@ -210,7 +210,7 @@ def run(config):
         if config['G_eval_mode']:
           print('Switchin G to eval mode...')
           G.eval()
-        train_fns.test(G, D, G_ema, state_dict, config, sample,
+        train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
                        get_inception_metrics, experiment_name, test_log)
     # Increment epoch counter at end of epoch
     state_dict['epoch'] += 1
