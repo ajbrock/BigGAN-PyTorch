@@ -18,7 +18,7 @@ import torchvision
 import inception_utils
 import utils
 import losses
-import model
+
 
 
 def run(config):
