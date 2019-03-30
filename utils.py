@@ -248,7 +248,7 @@ def prepare_parser():
     help='Default location to store all weights, samples, data, and logs '
            ' (default: %(default)s)')
   parser.add_argument(
-    '--dataset_root', type=str, default='data',
+    '--data_root', type=str, default='data',
     help='Default location where data is stored (default: %(default)s)')
   parser.add_argument(
     '--weights_root', type=str, default='weights',
@@ -521,15 +521,15 @@ class MultiEpochSampler(torch.utils.data.Sampler):
 
 
 # Convenience function to centralize all data loaders
-def get_data_loaders(dataset, dataset_root=None, augment=False, batch_size=64, 
+def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64, 
                      num_workers=8, shuffle=True, load_in_mem=False, hdf5=False,
                      pin_memory=True, drop_last=True, start_itr=0,
                      num_epochs=500, use_multiepoch_sampler=False,
                      **kwargs):
 
   # Append /FILENAME.hdf5 to root if using hdf5
-  dataset_root += '/%s' % root_dict[dataset]
-  print('Using dataset root location %s' % dataset_root)
+  data_root += '/%s' % root_dict[dataset]
+  print('Using dataset root location %s' % data_root)
 
   which_dataset = dset_dict[dataset]
   norm_mean = [0.5,0.5,0.5]
@@ -562,7 +562,7 @@ def get_data_loaders(dataset, dataset_root=None, augment=False, batch_size=64,
     train_transform = transforms.Compose(train_transform + [
                      transforms.ToTensor(),
                      transforms.Normalize(norm_mean, norm_std)])
-  train_set = which_dataset(root=dataset_root, transform=train_transform,
+  train_set = which_dataset(root=data_root, transform=train_transform,
                             load_in_mem=load_in_mem, **dataset_kwargs)
 
   # Prepare loader; the loaders list is for forward compatibility with
