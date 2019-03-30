@@ -220,6 +220,7 @@ def main():
   # parse command line and run
   parser = utils.prepare_parser()
   config = vars(parser.parse_args())
+  config = utils.update_config_roots(config)
   print(config)
   run(config)
 

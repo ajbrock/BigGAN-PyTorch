@@ -595,7 +595,8 @@ def seed_rng(seed):
 def update_config_roots(config):
   if config['base_root']:
     print('Pegging all root folders to base root %s' % config['base_root'])
-    for key in ['data', 'weights', 'logs', 'samples']:
+    config['dataset_root'] = '%s/data' % config['base_root']
+    for key in ['weights', 'logs', 'samples']:
       config['%s_root' % key] = '%s/%s' % (config['base_root'], key)
   return config
 
