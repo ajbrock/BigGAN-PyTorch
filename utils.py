@@ -886,10 +886,10 @@ def sample_sheet(G, classes_per_sheet, num_classes, samples_per_class, parallel,
     ims = []
     y = torch.arange(i * classes_per_sheet, (i + 1) * classes_per_sheet, device='cuda')
     for j in range(samples_per_class):
-      if z_ is None or classes_per_sheet > z_.size(0) and not hasattr(z, 'sample_'):
-        z_ = torch.randn(classes_per_sheet, G.dim_z, device='cuda')
-      else:
+      if (z is not None) and hasattr(z, 'sample_') and classes_per_sheet > z_.size(0):
         z_.sample_()
+      else:
+        z_ = torch.randn(classes_per_sheet, G.dim_z, device='cuda')        
       with torch.no_grad():
         if parallel:
           o = nn.parallel.data_parallel(G, (z_[:classes_per_sheet], G.shared(y)))
