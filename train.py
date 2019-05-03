@@ -75,7 +75,7 @@ def run(config):
                                'no_optim': True}).to(device)
     ema = utils.ema(G, G_ema, config['ema_decay'], config['ema_start'])
   else:
-    ema = None
+    G_ema, ema = None, None
   
   # FP16?
   if config['G_fp16']:
