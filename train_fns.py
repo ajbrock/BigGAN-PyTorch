@@ -33,6 +33,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
       
     for step_index in range(config['num_D_steps']):
       # If accumulating gradients, loop multiple times before an optimizer step
+      D.optim.zero_grad()
       for accumulation_index in range(config['num_D_accumulations']):
         z_.sample_()
         y_.sample_()
