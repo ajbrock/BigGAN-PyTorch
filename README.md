@@ -86,7 +86,7 @@ especially if training takes multiple weeks. Hopefully these will be helpful for
 - By default, we only compute the top singular value (the spectral norm), but this code supports computing more SVs through the `--num_G_SVs` argument.
 
 ## Key Differences Between This Code And The Original BigGAN
-- We use the optimizer settings from SA-GAN (G_lr=1e-4, D_lr=4e-4, num_D_steps=1, as opposed to BigGAN's G_lr=5e-5, D_lr=2e-5, num_D_steps=2).
+- We use the optimizer settings from SA-GAN (G_lr=1e-4, D_lr=4e-4, num_D_steps=1, as opposed to BigGAN's G_lr=5e-5, D_lr=2e-4, num_D_steps=2).
 While slightly less performant, this was the first corner we cut to bring training times down.
 - By default, we do not use Cross-Replica BatchNorm (AKA Synced BatchNorm). 
 The two variants we tried (a custom, naive one and the one included in this repo) have slightly different gradients (albeit identical forward passes) from the built-in BatchNorm, which appear to be sufficient to cripple training.
