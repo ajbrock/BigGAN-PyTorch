@@ -135,8 +135,8 @@ class ImageFolder(data.Dataset):
       print('Loading all images into memory...')
       self.data, self.labels = [], []
       for index in tqdm(range(len(self.imgs))):
-        path, target = self.transform(imgs[index][0]), imgs[index][1]
-        self.data.append(self.loader(path))
+        path, target = imgs[index][0], imgs[index][1]
+        self.data.append(self.transform(self.loader(path)))
         self.labels.append(target)
           
 
