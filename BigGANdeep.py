@@ -30,7 +30,6 @@ class GBlock(nn.Module):
     self.hidden_channels = self.in_channels // channel_ratio
     self.which_conv, self.which_bn = which_conv, which_bn
     self.activation = activation
-    self.upsample = upsample
     # Conv layers
     self.conv1 = self.which_conv(self.in_channels, self.hidden_channels, 
                                  kernel_size=1, padding=0)
