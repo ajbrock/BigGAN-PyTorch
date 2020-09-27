@@ -396,8 +396,10 @@ class GBlock(nn.Module):
     self.upsample = upsample
 
   def forward(self, x, y):
+    print("X Shape: ", x.shape, "Y Shape: ", y.shape)
     h = self.activation(self.bn1(x, y))
     if self.upsample:
+      print("H Shape: ", h.shape)
       h = self.upsample(h)
       x = self.upsample(x)
     h = self.conv1(h)
