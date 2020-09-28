@@ -176,9 +176,9 @@ def main():
   parser = utils.prepare_parser()
   parser = utils.add_sample_parser(parser)
   config = vars(parser.parse_args())
-  print("reached_main")
-  for item in config:
-  	print(item, config[item])
+  #print("reached_main")
+  #for item in config:
+  #	print(item, config[item])
   run(config)
   
 if __name__ == '__main__':    
