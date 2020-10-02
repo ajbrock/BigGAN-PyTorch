@@ -1,3 +1,2 @@
 #!/bin/bash
-python make_hdf5.py --dataset I128 --batch_size 256 --data_root data
-python calculate_inception_moments.py --dataset I128_hdf5 --data_root data
+python calculate_inception_moments.py --dataset Kinetics600 --data_root /home/shared/cs_vision/train_frames_12fps_128_center_cropped_h5/compact.h5
