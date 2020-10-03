@@ -439,4 +439,3 @@ b = ['abiding', 'accelerating', 'accepting', 'accomplishing', 'achieving',
  'yawning', 'yelling', 'zipping', 'zooming']
 
 
-print(c[385])
