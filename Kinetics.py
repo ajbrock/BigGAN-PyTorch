@@ -6,6 +6,7 @@ import numpy as np
 from PIL import Image
 import io
 
+
 class Kinetics600(Dataset):
 
     def __init__(self, root, transforms):
