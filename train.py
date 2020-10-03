@@ -100,6 +100,7 @@ def run(config):
                   'best_IS': 0, 'best_FID': 999999, 'config': config}
 
     # If loading from a pre-trained model, load weights
+    
     if config['resume']:
         print('Loading weights...')
         utils.load_weights(G, D, state_dict,
@@ -136,7 +137,7 @@ def run(config):
                     * config['num_D_accumulations'])
     loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size,
                                         'start_itr': state_dict['itr']})
-
+    print("GOT LOADER WORKING")
     # Prepare inception metrics: FID and IS
     get_inception_metrics = inception_utils.prepare_inception_metrics(
         config['dataset'], config['parallel'], config['no_fid'])
