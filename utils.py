@@ -30,13 +30,13 @@ import datasets as dset
 def prepare_parser():
   usage = 'Parser for all scripts.'
   parser = ArgumentParser(description=usage)
-  
   ### Dataset/Dataloader stuff ###
   parser.add_argument(
     '--dataset', type=str, default='I128_hdf5',
     help='Which Dataset to train on, out of I128, I256, C10, C100;'
          'Append "_hdf5" to use the hdf5 version for ISLVRC '
          '(default: %(default)s)')
+  print("dataset stuff")
   parser.add_argument(
     '--augment', action='store_true', default=False,
     help='Augment with random crops and flips (default: %(default)s)')
@@ -59,6 +59,7 @@ def prepare_parser():
   
   
   ### Model stuff ###
+  print("model stuff")
   parser.add_argument(
     '--model', type=str, default='BigGAN',
     help='Name of the model module (default: %(default)s)')
@@ -127,6 +128,7 @@ def prepare_parser():
          'ln [layernorm], gn [groupnorm] (default: %(default)s)')
          
   ### Model init stuff ###
+  print("model init stuff")
   parser.add_argument(
     '--seed', type=int, default=0,
     help='Random seed to use; affects both initialization and '
@@ -143,6 +145,7 @@ def prepare_parser():
           '(default: %(default)s)')
   
   ### Optimizer stuff ###
+  print("optimizer stuff")
   parser.add_argument(
     '--G_lr', type=float, default=5e-5,
     help='Learning rate to use for Generator (default: %(default)s)')
@@ -163,6 +166,7 @@ def prepare_parser():
     help='Beta2 to use for Discriminator (default: %(default)s)')
     
   ### Batch size, parallel, and precision stuff ###
+  print("batch size, parallel, precision stuff")
   parser.add_argument(
     '--batch_size', type=int, default=64,
     help='Default overall batchsize (default: %(default)s)')
@@ -211,7 +215,8 @@ def prepare_parser():
     help='Number of forward passes to use in accumulating standing stats? '
          '(default: %(default)s)')        
     
-  ### Bookkeping stuff ###  
+  ### Bookkeping stuff ###
+  print("bookkeeping stuff")  
   parser.add_argument(
     '--G_eval_mode', action='store_true', default=False,
     help='Run G in eval mode (running/standing stats?) at sample/test time? '
@@ -277,6 +282,7 @@ def prepare_parser():
          '(default: %(default)s)')
          
   ### EMA Stuff ###
+  print("ema stuff")
   parser.add_argument(
     '--ema', action='store_true', default=False,
     help='Keep an ema of G''s weights? (default: %(default)s)')
@@ -290,7 +296,8 @@ def prepare_parser():
     '--ema_start', type=int, default=0,
     help='When to start updating the EMA weights (default: %(default)s)')
   
-  ### Numerical precision and SV stuff ### 
+  ### Numerical precision and SV stuff ###
+  print("numerical precision") 
   parser.add_argument(
     '--adam_eps', type=float, default=1e-8,
     help='epsilon value to use for Adam (default: %(default)s)')
@@ -313,7 +320,8 @@ def prepare_parser():
     '--num_D_SV_itrs', type=int, default=1,
     help='Number of SV itrs in D (default: %(default)s)')
   
-  ### Ortho reg stuff ### 
+  ### Ortho reg stuff ###
+  print("ortho reg stuff") 
   parser.add_argument(
     '--G_ortho', type=float, default=0.0, # 1e-4 is default for BigGAN
     help='Modified ortho reg coefficient in G(default: %(default)s)')
@@ -326,11 +334,13 @@ def prepare_parser():
          ' (default: %(default)s)')
   
   ### Which train function ###
+  print("train function")
   parser.add_argument(
     '--which_train_fn', type=str, default='GAN',
     help='How2trainyourbois (default: %(default)s)')  
   
   ### Resume training stuff
+  print("resume training")
   parser.add_argument(
     '--load_weights', type=str, default='',
     help='Suffix for which weights to load (e.g. best0, copy0) '
@@ -340,6 +350,7 @@ def prepare_parser():
     help='Resume training? (default: %(default)s)')
   
   ### Log stuff ###
+  print("log")
   parser.add_argument(
     '--logstyle', type=str, default='%3.3e',
     help='What style to use when logging training metrics?'

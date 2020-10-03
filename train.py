@@ -32,7 +32,7 @@ from sync_batchnorm import patch_replication_callback
 # The main training file. Config is a dictionary specifying the configuration
 # of this training run.
 def run(config):
-
+  print("reached run")
   # Update the config dict as necessary
   # This is for convenience, to add settings derived from the user-specified
   # configuration into the config-dict (e.g. inferring the number of classes
