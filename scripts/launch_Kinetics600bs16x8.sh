@@ -1,6 +1,6 @@
 #!/bin/bash
 python train.py \
---experiment_name KineticsFinetune \
+--experiment_name Kinetics-BigGAN-Finetune \
 --data_root "/home/shared/cs_vision" \
 --dataset Kinetics600 --parallel --shuffle  --num_workers 8 --batch_size 16 --load_in_mem  \
 --num_G_accumulations 8 --num_D_accumulations 8 \

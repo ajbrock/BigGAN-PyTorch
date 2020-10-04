@@ -2,4 +2,5 @@ pretrained_zip/
 weights/
 samples/
 samples2/
+logs/
 *.csv
