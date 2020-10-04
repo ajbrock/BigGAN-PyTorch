@@ -374,22 +374,45 @@ class CIFAR100(CIFAR10):
     ]
 
 
+from torchvision import transforms
+from torch.utils.data import Dataset
+import h5py
+import os
+import numpy as np
+from PIL import Image
+import io
+import pandas as pd
+
 class Kinetics600(Dataset):
-    def __init__(self, root, transforms):
+    def __init__(self, root, transform, load_in_mem=False, train_csv="train.csv", test_csv="test.csv", val_csv="val_csv"):
         super().__init__()
         self.root = root
-        self.transforms = transforms
+        self.transforms = transform
         self.frames = []
         self.labels = []
+
+        train_csv = pd.read_csv(train_csv)
+        test_csv = pd.read_csv(test_csv)
+        val_csv = pd.read_csv(val_csv)
+
+        train = train_csv[train_csv.youtube_id != "#NAME?"]
+        val = val_csv[val_csv.youtube_id != "#NAME?"]
+        test = test_csv[test_csv.youtube_id != "#NAME?"]
+
+        train_dict = pd.Series(data=train.label.values, index = train.youtube_id.values)
+        val_dict = pd.Series(data=val.label.values, index = val.youtube_id.values)
+        test_dict = pd.Series(data=test.label.values, index = test.youtube_id.values)
+
+        self.kinetics_hash = {**train_dict, **val_dict, **test_dict}
 
         with h5py.File(root, 'r') as f:
             self.video_list = f[list(f.keys())[0]]
             for vid_id in list(self.video_list.keys()):
-                print(vid_id)
+                print(self.kinetics_hash[vid_id])
                 vid = self.video_list[vid_id]
                 for frame in sorted(list(vid.keys())):
                     self.frames.append(vid[frame])
-                    self.labels.append(vid_id)
+                    self.labels.append(self.kinetics_hash[vid_id])
         self.length = len(self.labels)
 
     def __len__(self):

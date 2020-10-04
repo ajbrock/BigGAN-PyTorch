@@ -417,8 +417,7 @@ def add_sample_parser(parser):
 
 
 # Convenience dicts
-kineticsh5 = os.path.join("/home", "shared", "cs_vision",
-                          "train_frames_12fps_128_center_cropped_h5", "compact.h5")
+kineticsh5 = os.path.join("train_frames_12fps_128_center_cropped_h5", "compact.h5")
 dset_dict = {'I32': dset.ImageFolder, 'I64': dset.ImageFolder,
              'I128': dset.ImageFolder, 'I256': dset.ImageFolder,
              'I32_hdf5': dset.ILSVRC_HDF5, 'I64_hdf5': dset.ILSVRC_HDF5,
@@ -589,8 +588,9 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
         train_transform = transforms.Compose(train_transform + [
             transforms.ToTensor(),
             transforms.Normalize(norm_mean, norm_std)])
-    train_set = which_dataset(root=data_root, transform=train_transform,
-                              load_in_mem=load_in_mem, **dataset_kwargs)
+    # train_set = which_dataset(root=data_root, transform=train_transform,
+    #                           load_in_mem=load_in_mem, **dataset_kwargs)
+    train_set = which_dataset(root=data_root, transform=train_transform, load_in_mem=load_in_mem)
 
     # Prepare loader; the loaders list is for forward compatibility with
     # using validation / test splits.
