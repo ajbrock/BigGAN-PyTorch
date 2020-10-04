@@ -417,8 +417,7 @@ def add_sample_parser(parser):
 
 
 # Convenience dicts
-kineticsh5 = os.path.join("/home", "shared", "cs_vision",
-                          "train_frames_12fps_128_center_cropped_h5", "compact.h5")
+kineticsh5 = os.path.join("train_frames_12fps_128_center_cropped_h5", "compact.h5")
 dset_dict = {'I32': dset.ImageFolder, 'I64': dset.ImageFolder,
              'I128': dset.ImageFolder, 'I256': dset.ImageFolder,
              'I32_hdf5': dset.ILSVRC_HDF5, 'I64_hdf5': dset.ILSVRC_HDF5,
@@ -440,7 +439,7 @@ nclass_dict = {'I32': 1000, 'I32_hdf5': 1000,
                'I64': 1000, 'I64_hdf5': 1000,
                'I128': 1000, 'I128_hdf5': 1000,
                'I256': 1000, 'I256_hdf5': 1000,
-               'C10': 10, 'C100': 100, 'Kinetics600': 240436}
+               'C10': 10, 'C100': 100, 'Kinetics600': 600}
 # Number of classes to put per sample sheet
 classes_per_sheet_dict = {'I32': 50, 'I32_hdf5': 50,
                           'I64': 50, 'I64_hdf5': 50,
@@ -589,9 +588,10 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
         train_transform = transforms.Compose(train_transform + [
             transforms.ToTensor(),
             transforms.Normalize(norm_mean, norm_std)])
-    train_set = which_dataset(root=data_root, transform=train_transform,
-                              load_in_mem=load_in_mem, **dataset_kwargs)
-
+    #train_set = which_dataset(root=data_root, transform=train_transform,
+    #                         load_in_mem=load_in_mem, **dataset_kwargs)
+    print(data_root) 
+    train_set = which_dataset(root = data_root, transform=train_transform, load_in_mem = load_in_mem)
     # Prepare loader; the loaders list is for forward compatibility with
     # using validation / test splits.
     loaders = []

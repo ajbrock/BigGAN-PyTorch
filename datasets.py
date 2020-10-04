@@ -374,11 +374,19 @@ class CIFAR100(CIFAR10):
     ]
 
 
+from torchvision import transforms
+from torch.utils.data import Dataset
+import h5py
+import os
+import numpy as np
+from PIL import Image
+import io
+
 class Kinetics600(Dataset):
-    def __init__(self, root, transforms):
+    def __init__(self, root, transform, load_in_mem=False):
         super().__init__()
         self.root = root
-        self.transforms = transforms
+        self.transforms = transform
         self.frames = []
         self.labels = []
 
