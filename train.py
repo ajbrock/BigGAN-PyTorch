@@ -91,8 +91,8 @@ def run(config):
         D = D.half()
         # Consider automatically reducing SN_eps?
     GD = model.G_D(G, D)
-    #print(G)
-    #print(D)
+    # print(G)
+    # print(D)
     print('Number of params in G: {} D: {}'.format(
         *[sum([p.data.nelement() for p in net.parameters()]) for net in [G, D]]))
     # Prepare state dict, which holds things like epoch # and itr #
@@ -100,7 +100,7 @@ def run(config):
                   'best_IS': 0, 'best_FID': 999999, 'config': config}
 
     # If loading from a pre-trained model, load weights
-    
+
     if config['resume']:
         print('Loading weights...')
         utils.load_weights(G, D, state_dict,
@@ -138,9 +138,11 @@ def run(config):
     loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size,
                                         'start_itr': state_dict['itr']})
     print("GOT LOADER WORKING")
+    for loader in loaders:
+        print(len(loader))
     # Prepare inception metrics: FID and IS
-    get_inception_metrics = inception_utils.prepare_inception_metrics(
-        config['dataset'], config['parallel'], config['no_fid'])
+    # get_inception_metrics = inception_utils.prepare_inception_metrics(
+    # config['dataset'], config['parallel'], config['no_fid'])
 
     # Prepare noise and randomly sampled label arrays
     # Allow for different batch sizes in G
@@ -176,6 +178,7 @@ def run(config):
         else:
             pbar = tqdm(loaders[0])
         for i, (x, y) in enumerate(pbar):
+            print(len(x), len(y))
             # Increment the iteration counter
             state_dict['itr'] += 1
             # Make sure G and D are in training mode, just in case they got set to eval

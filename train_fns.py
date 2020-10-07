@@ -16,7 +16,7 @@ def dummy_training_function():
         return {}
     return train
 
-
+import torch.nn.functional as F
 def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     def train(x, y):
         G.optim.zero_grad()

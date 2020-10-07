@@ -1,0 +1,9 @@
+#!/bin/bash
+#SBATCH --job-name="kinetics-finetune"
+#SBATCH --partition=gpux4
+#SBATCH --cpu_per_gpu=16
+#SBATCH --time=24
+
+module load wmlce/1.6.1-py3.6
+cd /home/niviru/Vision/BigGAN-PyTorch
+srun sh scripts/launch Kinetics400_bs16x8.sh

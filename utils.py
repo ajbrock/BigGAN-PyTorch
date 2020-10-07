@@ -417,35 +417,36 @@ def add_sample_parser(parser):
 
 
 # Convenience dicts
-kineticsh5 = os.path.join("train_frames_12fps_128_center_cropped_h5", "compact.h5")
+kineticsh5 = os.path.join(
+    "train_frames_12fps_128_center_cropped_h5", "compact.h5")
 dset_dict = {'I32': dset.ImageFolder, 'I64': dset.ImageFolder,
              'I128': dset.ImageFolder, 'I256': dset.ImageFolder,
              'I32_hdf5': dset.ILSVRC_HDF5, 'I64_hdf5': dset.ILSVRC_HDF5,
              'I128_hdf5': dset.ILSVRC_HDF5, 'I256_hdf5': dset.ILSVRC_HDF5,
-             'C10': dset.CIFAR10, 'C100': dset.CIFAR100, 'Kinetics600': dset.Kinetics600}
+             'C10': dset.CIFAR10, 'C100': dset.CIFAR100, 'Kinetics400': dset.Kinetics400}
 
 imsize_dict = {'I32': 32, 'I32_hdf5': 32,
                'I64': 64, 'I64_hdf5': 64,
                'I128': 128, 'I128_hdf5': 128,
                'I256': 256, 'I256_hdf5': 256,
-               'C10': 32, 'C100': 32, 'Kinetics600': 128}
+               'C10': 32, 'C100': 32, 'Kinetics400': 128}
 root_dict = {'I32': 'ImageNet', 'I32_hdf5': 'ILSVRC32.hdf5',
              'I64': 'ImageNet', 'I64_hdf5': 'ILSVRC64.hdf5',
              'I128': 'ImageNet', 'I128_hdf5': 'ILSVRC128.hdf5',
              'I256': 'ImageNet', 'I256_hdf5': 'ILSVRC256.hdf5',
-             'C10': 'cifar', 'C100': 'cifar', 'Kinetics600': kineticsh5}
+             'C10': 'cifar', 'C100': 'cifar', 'Kinetics400': kineticsh5}
 
 nclass_dict = {'I32': 1000, 'I32_hdf5': 1000,
                'I64': 1000, 'I64_hdf5': 1000,
                'I128': 1000, 'I128_hdf5': 1000,
                'I256': 1000, 'I256_hdf5': 1000,
-               'C10': 10, 'C100': 100, 'Kinetics600': 600}
+               'C10': 10, 'C100': 100, 'Kinetics400':400}
 # Number of classes to put per sample sheet
 classes_per_sheet_dict = {'I32': 50, 'I32_hdf5': 50,
                           'I64': 50, 'I64_hdf5': 50,
                           'I128': 20, 'I128_hdf5': 20,
                           'I256': 20, 'I256_hdf5': 20,
-                          'C10': 10, 'C100': 100, 'Kinetics600': 20}
+                          'C10': 10, 'C100': 100, 'Kinetics400': 20}
 
 activation_dict = {'inplace_relu': nn.ReLU(inplace=True),
                    'relu': nn.ReLU(inplace=False),
@@ -588,15 +589,17 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
         train_transform = transforms.Compose(train_transform + [
             transforms.ToTensor(),
             transforms.Normalize(norm_mean, norm_std)])
-    #train_set = which_dataset(root=data_root, transform=train_transform,
+    # train_set = which_dataset(root=data_root, transform=train_transform,
     #                         load_in_mem=load_in_mem, **dataset_kwargs)
-    print(data_root) 
-    train_set = which_dataset(root = data_root, transform=train_transform, load_in_mem = load_in_mem)
+    print(data_root)
+    train_set = which_dataset(
+        root=data_root, transform=train_transform, load_in_mem=load_in_mem)
     # Prepare loader; the loaders list is for forward compatibility with
     # using validation / test splits.
     loaders = []
     if use_multiepoch_sampler:
         print('Using multiepoch sampler from start_itr %d...' % start_itr)
+        print("Batch Size %d" % batch_size)
         loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory}
         sampler = MultiEpochSampler(
             train_set, num_epochs, start_itr, batch_size)
