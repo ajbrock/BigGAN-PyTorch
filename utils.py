@@ -39,7 +39,6 @@ def prepare_parser():
         help='Which Dataset to train on, out of I128, I256, C10, C100;'
         'Append "_hdf5" to use the hdf5 version for ISLVRC '
         '(default: %(default)s)')
-    print("dataset stuff")
     parser.add_argument(
         '--augment', action='store_true', default=False,
         help='Augment with random crops and flips (default: %(default)s)')
@@ -61,7 +60,6 @@ def prepare_parser():
         help='Use the multi-epoch sampler for dataloader? (default: %(default)s)')
 
     ### Model stuff ###
-    print("model stuff")
     parser.add_argument(
         '--model', type=str, default='BigGAN',
         help='Name of the model module (default: %(default)s)')
@@ -130,7 +128,6 @@ def prepare_parser():
         'ln [layernorm], gn [groupnorm] (default: %(default)s)')
 
     ### Model init stuff ###
-    print("model init stuff")
     parser.add_argument(
         '--seed', type=int, default=0,
         help='Random seed to use; affects both initialization and '
@@ -147,7 +144,6 @@ def prepare_parser():
         '(default: %(default)s)')
 
     ### Optimizer stuff ###
-    print("optimizer stuff")
     parser.add_argument(
         '--G_lr', type=float, default=5e-5,
         help='Learning rate to use for Generator (default: %(default)s)')
@@ -168,7 +164,6 @@ def prepare_parser():
         help='Beta2 to use for Discriminator (default: %(default)s)')
 
     ### Batch size, parallel, and precision stuff ###
-    print("batch size, parallel, precision stuff")
     parser.add_argument(
         '--batch_size', type=int, default=64,
         help='Default overall batchsize (default: %(default)s)')
@@ -218,7 +213,6 @@ def prepare_parser():
         '(default: %(default)s)')
 
     ### Bookkeping stuff ###
-    print("bookkeeping stuff")
     parser.add_argument(
         '--G_eval_mode', action='store_true', default=False,
         help='Run G in eval mode (running/standing stats?) at sample/test time? '
@@ -284,7 +278,6 @@ def prepare_parser():
         '(default: %(default)s)')
 
     ### EMA Stuff ###
-    print("ema stuff")
     parser.add_argument(
         '--ema', action='store_true', default=False,
         help='Keep an ema of G''s weights? (default: %(default)s)')
@@ -299,7 +292,6 @@ def prepare_parser():
         help='When to start updating the EMA weights (default: %(default)s)')
 
     ### Numerical precision and SV stuff ###
-    print("numerical precision")
     parser.add_argument(
         '--adam_eps', type=float, default=1e-8,
         help='epsilon value to use for Adam (default: %(default)s)')
@@ -323,7 +315,6 @@ def prepare_parser():
         help='Number of SV itrs in D (default: %(default)s)')
 
     ### Ortho reg stuff ###
-    print("ortho reg stuff")
     parser.add_argument(
         '--G_ortho', type=float, default=0.0,  # 1e-4 is default for BigGAN
         help='Modified ortho reg coefficient in G(default: %(default)s)')
@@ -336,13 +327,11 @@ def prepare_parser():
         ' (default: %(default)s)')
 
     ### Which train function ###
-    print("train function")
     parser.add_argument(
         '--which_train_fn', type=str, default='GAN',
         help='How2trainyourbois (default: %(default)s)')
 
     # Resume training stuff
-    print("resume training")
     parser.add_argument(
         '--load_weights', type=str, default='',
         help='Suffix for which weights to load (e.g. best0, copy0) '
@@ -352,7 +341,6 @@ def prepare_parser():
         help='Resume training? (default: %(default)s)')
 
     ### Log stuff ###
-    print("log")
     parser.add_argument(
         '--logstyle', type=str, default='%3.3e',
         help='What style to use when logging training metrics?'
@@ -528,13 +516,17 @@ class MultiEpochSampler(torch.utils.data.Sampler):
         # Determine number of epochs
         num_epochs = int(np.ceil((n * self.num_epochs
                                   - (self.start_itr * self.batch_size)) / float(n)))
+        print(self.num_epochs)
+        print(num_epochs)
         # Sample all the indices, and then grab the last num_epochs index sets;
         # This ensures if we're starting at epoch 4, we're still grabbing epoch 4's
         # indices
         out = [torch.randperm(n)
                for epoch in range(self.num_epochs)][-num_epochs:]
         # Ignore the first start_itr % n indices of the first epoch
+        #print(len(out))
         out[0] = out[0][(self.start_itr * self.batch_size % n):]
+        print(len(out), len(out[0]))
         # if self.replacement:
         # return iter(torch.randint(high=n, size=(self.num_samples,), dtype=torch.int64).tolist())
         # return iter(.tolist())
@@ -554,9 +546,9 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
                      **kwargs):
 
     # Append /FILENAME.hdf5 to root if using hdf5
-    data_root += '/%s' % root_dict[dataset]
-    print('Using dataset root location %s' % data_root)
-
+    #data_root += '/%s' % root_dict[dataset]
+    #print('Using dataset root location %s' % data_root)
+    data_root = "/home/shared/cs_vision/train_frames_12fps_128_center_cropped_h5/compact.h5"
     which_dataset = dset_dict[dataset]
     norm_mean = [0.5, 0.5, 0.5]
     norm_std = [0.5, 0.5, 0.5]
@@ -593,7 +585,7 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
     #                         load_in_mem=load_in_mem, **dataset_kwargs)
     print(data_root)
     train_set = which_dataset(
-        root=data_root, transform=train_transform, load_in_mem=load_in_mem)
+        root=data_root, transform=train_transform)
     # Prepare loader; the loaders list is for forward compatibility with
     # using validation / test splits.
     loaders = []

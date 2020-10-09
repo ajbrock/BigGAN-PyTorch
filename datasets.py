@@ -376,16 +376,14 @@ class CIFAR100(CIFAR10):
 
 import random
 class Kinetics400(Dataset):
-    def __init__(self, root, transform, load_in_mem=False):
+    def __init__(self, root, transform):
         super().__init__()
-        self.root = root
-        self.dataset = h5py.File(root, 'r')
-        self.video_list = self.dataset[list(self.dataset.keys())[0]]
-        self.video_keys = list(self.video_list.keys())
+        with h5py.File(root, 'r') as f:
+            self.dataset = h5py.File(root, 'r')
+            self.video_list = self.dataset[list(self.dataset.keys())[0]]
+            self.video_keys = list(self.video_list.keys())
         
         self.transforms = transform
-        self.frames = []
-        self.labels = []
 
         train_csv = "/home/niviru/Vision/ActivityNet/Crawler/Kinetics/data/kinetics-400_train.csv"
         val_csv = "/home/niviru/Vision/ActivityNet/Crawler/Kinetics/data/kinetics-400_val.csv"
@@ -406,16 +404,15 @@ class Kinetics400(Dataset):
 
         self.kinetics_hash = {**train_dict, **val_dict}
         print("Created Kinetics Hash")
-        print("Classes", len(set(train_dict.values())), len(set(val_dict.values())))
-    def __len__(self):
-        return len(self.video_keys)
 
+    def __len__(self):
+        #return len(self.video_keys)
+        return 10
     def __getitem__(self, index):
         vid = self.video_list[self.video_keys[index]]
-        #print(self.video_keys[index], len(list(vid.keys())))
         frame_idx = random.randint(1, len(list(vid.keys())))
+
         frame = np.array(vid['%06d.jpg' % frame_idx])
-        label = list(set(self.kinetics_hash.values())).index(self.kinetics_hash[self.video_keys[index]])
-        label =torch.tensor(label)
+        label = torch.tensor(list(set(self.kinetics_hash.values())).index(self.kinetics_hash[self.video_keys[index]]))
         frame = self.transforms(Image.open(io.BytesIO(frame)))
         return frame, label

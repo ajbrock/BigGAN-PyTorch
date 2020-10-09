@@ -34,7 +34,6 @@ from sync_batchnorm import patch_replication_callback
 
 
 def run(config):
-    print("reached run")
     # Update the config dict as necessary
     # This is for convenience, to add settings derived from the user-specified
     # configuration into the config-dict (e.g. inferring the number of classes
@@ -137,9 +136,7 @@ def run(config):
                     * config['num_D_accumulations'])
     loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size,
                                         'start_itr': state_dict['itr']})
-    print("GOT LOADER WORKING")
     for loader in loaders:
-        print(len(loader))
     # Prepare inception metrics: FID and IS
     # get_inception_metrics = inception_utils.prepare_inception_metrics(
     # config['dataset'], config['parallel'], config['no_fid'])
@@ -178,7 +175,6 @@ def run(config):
         else:
             pbar = tqdm(loaders[0])
         for i, (x, y) in enumerate(pbar):
-            print(len(x), len(y))
             # Increment the iteration counter
             state_dict['itr'] += 1
             # Make sure G and D are in training mode, just in case they got set to eval
@@ -193,7 +189,6 @@ def run(config):
                 x, y = x.to(device), y.to(device)
             metrics = train(x, y)
             train_log.log(itr=int(state_dict['itr']), **metrics)
-
             # Every sv_log_interval, log singular values
             if (config['sv_log_interval'] > 0) and (not (state_dict['itr'] % config['sv_log_interval'])):
                 train_log.log(itr=int(state_dict['itr']),
@@ -230,7 +225,7 @@ def main():
     # parse command line and run
     parser = utils.prepare_parser()
     config = vars(parser.parse_args())
-    print(config)
+    #print(config)
     run(config)
 
 

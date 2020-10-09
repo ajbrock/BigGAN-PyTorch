@@ -2,7 +2,7 @@
 python train.py \
 --experiment_name Kinetics-BigGAN-Finetune \
 --data_root "/home/shared/cs_vision" \
---dataset Kinetics400 --parallel --shuffle  --num_workers 1 --batch_size 16 --load_in_mem  \
+--dataset Kinetics400 --parallel --shuffle  --num_workers 1 --batch_size 32 --load_in_mem  \
 --pbar "tqdm" \
 --num_G_accumulations 8 --num_D_accumulations 8 \
 --num_D_steps 1 --G_lr 5e-4 --D_lr 1e-4 --D_B2 0.999 --G_B2 0.999 \
@@ -16,5 +16,5 @@ python train.py \
 --G_eval_mode \
 --G_ch 96 --D_ch 96 \
 --ema --use_ema --ema_start 20000 \
---test_every 2000 --base_root kinetics_finetune --save_every 1000 --num_best_copies 5 --num_save_copies 2 --seed 0 \
+--test_every 2000 --base_root kinetics_finetune --save_every 2000 --num_best_copies 5 --num_save_copies 2 --seed 0 \
 --use_multiepoch_sampler

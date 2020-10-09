@@ -4,3 +4,4 @@ samples/
 samples2/
 logs/
 *.csv
+kinetics_finetune/
