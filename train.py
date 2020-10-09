@@ -136,7 +136,6 @@ def run(config):
                     * config['num_D_accumulations'])
     loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size,
                                         'start_itr': state_dict['itr']})
-    for loader in loaders:
     # Prepare inception metrics: FID and IS
     # get_inception_metrics = inception_utils.prepare_inception_metrics(
     # config['dataset'], config['parallel'], config['no_fid'])

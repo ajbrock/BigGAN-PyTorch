@@ -406,8 +406,7 @@ class Kinetics400(Dataset):
         print("Created Kinetics Hash")
 
     def __len__(self):
-        #return len(self.video_keys)
-        return 10
+        return len(self.video_keys)
     def __getitem__(self, index):
         vid = self.video_list[self.video_keys[index]]
         frame_idx = random.randint(1, len(list(vid.keys())))
