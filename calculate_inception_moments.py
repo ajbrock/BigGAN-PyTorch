@@ -64,7 +64,6 @@ def run(config):
             pool += [np.asarray(pool_val.cpu())]
             logits += [np.asarray(F.softmax(logits_val, 1).cpu())]
             labels += [np.asarray(y.cpu())]
-
     pool, logits, labels = [np.concatenate(item, 0) for item in [
         pool, logits, labels]]
     # uncomment to save pool, logits, and labels to disk

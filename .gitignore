@@ -5,3 +5,5 @@ samples2/
 logs/
 *.csv
 kinetics_finetune/
+finetune_weights/
+pt_w

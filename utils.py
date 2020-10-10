@@ -730,42 +730,86 @@ def save_weights(G, D, state_dict, weights_root, experiment_name,
         torch.save(G_ema.state_dict(),
                    '%s/%s.pth' % (root, join_strings('_', ['G_ema', name_suffix])))
 
-
+from collections import OrderedDict
 # Load a model's weights, optimizer, and the state_dict
 def load_weights(G, D, state_dict, weights_root, experiment_name,
                  name_suffix=None, G_ema=None, strict=True, load_optim=True):
-    root = '/'.join([weights_root])
-    #root = '/'.join([weights_root, experiment_name])
+    root = '/'.join([weights_root, experiment_name])
     if name_suffix:
         print('Loading %s weights from %s...' % (name_suffix, root))
     else:
         print('Loading weights from %s...' % root)
     if G is not None:
-        G.load_state_dict(
-            torch.load('%s/%s.pth' %
-                       (root, join_strings('_', ['G', name_suffix]))),
-            strict=strict)
+        gen_dict = torch.load('%s/%s.pth' % (root, join_strings('_', ['G', name_suffix])))
+        print(list(gen_dict.values()))
+        for key, val in gen_dict.items():
+            if 1000 in val.shape:
+                if val.shape[0] == 1000:
+                    gen_dict[key] = torch.nn.init.orthogonal_(torch.empty(400, val.shape[1]))
+                else:
+                    gen_dict[key] = torch.nn.init.orthogonal_(torch.empty(val.shape[0], 400))
+        #G.load_state_dict(
+            #torch.load('%s/%s.pth' %
+                       #(root, join_strings('_', ['G', name_suffix]))),
+            #strict=strict)
+        G.load_state_dict(gen_dict, strict=strict)
         if load_optim:
-            G.optim.load_state_dict(
-                torch.load('%s/%s.pth' % (root, join_strings('_', ['G_optim', name_suffix]))))
+            print("not loading g_optim")
+            #g_optim_dict = torch.load('%s/%s.pth' % (root, join_strings('_', ['G_optim', name_suffix])))
+            #for d in g_optim_dict.keys():
+                #for key in g_optim_dict[d].keys():
+                    #print(key, type(key))
+                    #if 1000 in val.shape:
+                        #print(key, val.shape)
+            #G.optim.load_state_dict(
+                #torch.load('%s/%s.pth' % (root, join_strings('_', ['G_optim', name_suffix]))))
     if D is not None:
-        D.load_state_dict(
-            torch.load('%s/%s.pth' %
-                       (root, join_strings('_', ['D', name_suffix]))),
-            strict=strict)
+        disc_dict = torch.load('%s/%s.pth' % (root, join_strings('_', ['D', name_suffix])))
+        for key, val in disc_dict.items():
+            if 1000 in val.shape:
+                if val.shape[0] == 1000:
+                    if "weight" in key:
+                        disc_dict[key] = torch.nn.init.orthogonal_(torch.empty(400, val.shape[1]))
+                    else:
+                        disc_dict[key] = torch.empty(400, val.shape[1])
+                else:
+                    if "weight" in key:
+                        disc_dict[key] = torch.nn.init.orthogonal_(torch.empty(val.shape[0], 400))
+                    else:
+                        disc_dict[key] = torch.empty(val.shape[0], 400)
+        #D.load_state_dict(
+            #torch.load('%s/%s.pth' %
+                       #(root, join_strings('_', ['D', name_suffix]))),
+            #strict=strict)
+        D.load_state_dict(disc_dict, strict=strict)
         if load_optim:
-            D.optim.load_state_dict(
-                torch.load('%s/%s.pth' % (root, join_strings('_', ['D_optim', name_suffix]))))
+            print("not loading d_optim")
+            #d_optim_dict = torch.load('%s/%s.pth' % (root, join_strings('_', ['D_optim', name_suffix])))
+            #for d in d_optim_dict.items():
+                #for key,val in d_optim_dict[d].items():
+                    #if 1000 in val.shape:
+                        #print(key, val.shape)
+
+            #D.optim.load_state_dict(
+                #torch.load('%s/%s.pth' % (root, join_strings('_', ['D_optim', name_suffix]))))
     # Load state dict
     for item in state_dict:
         state_dict[item] = torch.load(
             '%s/%s.pth' % (root, join_strings('_', ['state_dict', name_suffix])))[item]
     if G_ema is not None:
-        G_ema.load_state_dict(
-            torch.load('%s/%s.pth' %
-                       (root, join_strings('_', ['G_ema', name_suffix]))),
-            strict=strict)
-
+        gen_ema_dict = torch.load('%s/%s.pth' % (root, join_strings('_', ['G_ema', name_suffix])))
+        for key, val in gen_ema_dict.items():
+            if 1000 in val.shape:
+                print(key, val.shape)
+                if val.shape[0] == 1000:
+                    gen_ema_dict[key] = torch.nn.init.orthogonal_(torch.empty(400, val.shape[1]))
+                else:
+                    gen_ema_dict[key] = torch.nn.init.orthogonal_(torch.empty(val.shape[0], 400))
+        #G_ema.load_state_dict(
+            #torch.load('%s/%s.pth' %
+                       #(root, join_strings('_', ['G_ema', name_suffix]))),
+            #strict=strict)
+        G_ema.load_state_dict(gen_ema_dict, strict=strict)
 
 ''' MetricsLogger originally stolen from VoxNet source code.
     Used for logging inception metrics'''

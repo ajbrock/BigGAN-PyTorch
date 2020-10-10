@@ -1,8 +1,8 @@
 #!/bin/bash
 python train.py \
---experiment_name Kinetics-BigGAN-Finetune \
+--experiment_name Kinetics-BigGAN-Finetune_weights_test \
 --data_root "/home/shared/cs_vision" \
---dataset Kinetics400 --parallel --shuffle  --num_workers 1 --batch_size 32 --load_in_mem  \
+--dataset Kinetics400 --parallel --shuffle  --num_workers 4 --batch_size 32 --load_in_mem  \
 --pbar "tqdm" \
 --num_G_accumulations 8 --num_D_accumulations 8 \
 --num_D_steps 1 --G_lr 5e-4 --D_lr 1e-4 --D_B2 0.999 --G_B2 0.999 \

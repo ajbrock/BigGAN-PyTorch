@@ -55,7 +55,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
                 # Debug print to indicate we're using ortho reg in D.
                 print('using modified ortho reg in D')
                 utils.ortho(D, config['D_ortho'])
-
+            
             D.optim.step()
 
         # Optionally toggle "requires_grad"

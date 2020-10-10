@@ -282,8 +282,8 @@ def prepare_inception_metrics(dataset, parallel, no_fid=False):
     # the script will crash here if it cannot find the Inception moments.
     # By default, remove the "hdf5" from dataset
     dataset = dataset.strip('_hdf5')
-    data_mu = np.load(dataset+'_inception_moments.npz')['mu']
-    data_sigma = np.load(dataset+'_inception_moments.npz')['sigma']
+    data_mu = np.load("scripts/utils/"+dataset+'_inception_moments.npz')['mu']
+    data_sigma = np.load("scripts/utils/"+dataset+'_inception_moments.npz')['sigma']
     # Load network
     net = load_inception_net(parallel)
 
