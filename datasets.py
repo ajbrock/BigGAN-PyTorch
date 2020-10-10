@@ -12,6 +12,7 @@ import h5py as h5
 import os
 import os.path
 import sys
+import random
 from PIL import Image
 import numpy as np
 from tqdm import tqdm, trange
@@ -374,48 +375,39 @@ class CIFAR100(CIFAR10):
         ['test', 'f0ef6b0ae62326f3e7ffdfab6717acfc'],
     ]
 
-import random
+
 class Kinetics400(Dataset):
     def __init__(self, root, transform):
         super().__init__()
-        with h5py.File(root, 'r') as f:
-            self.video_list = f[list(f.keys())[0]]
-            self.video_keys = list(self.video_list.keys())
+        
+        label_set = set()
+        self.samples = []
+        with open('/home/shared/cs_vision/train_frames_12fps_128_center_cropped_h5/kinetics_train_frames_12fps_vid_list_labels.txt') as f:
+            lines = f.readlines()
+            for l in lines:
+                data_tup = l.strip().split('\t')
+                assert len(data_tup) == 3
+                label_set.add(data_tup[1])
+                self.samples.append(data_tup)
+
+        print('Found %d classes.' % len(label_set))
+        self.label_map = dict([(i, val) for val, i in enumerate(sorted(list(label_set)))])
+
         self.root = root 
+        print('root data file: ', root)
         self.transforms = transform
 
-        train_csv = "/home/niviru/Vision/ActivityNet/Crawler/Kinetics/data/kinetics-400_train.csv"
-        val_csv = "/home/niviru/Vision/ActivityNet/Crawler/Kinetics/data/kinetics-400_val.csv"
-        test_csv = "/home/niviru/Vision/ActivityNet/Crawler/Kinetics/data/kinetics-400_test.csv"
-
-        train_csv = pd.read_csv(train_csv)
-        test_csv = pd.read_csv(test_csv)
-        val_csv = pd.read_csv(val_csv)
-
-        train = train_csv[train_csv.youtube_id != "#NAME?"]
-        val = val_csv[val_csv.youtube_id != "#NAME?"]
-        test = test_csv[test_csv.youtube_id != "#NAME?"]
-
-        train_dict = pd.Series(data=train.label.values,
-                               index=train.youtube_id.values).to_dict()
-        val_dict = pd.Series(data=val.label.values,
-                             index=val.youtube_id.values).to_dict()
-
-        self.kinetics_hash = {**train_dict, **val_dict}
-        print("Created Kinetics Hash")
-
     def __len__(self):
-        return len(self.video_keys)
+        return len(self.samples)
 
     def __getitem__(self, index):
+        vid_name, label_name, num_seq_frames = self.samples[index]
+        frame_idx = random.randint(1, int(num_seq_frames))
         with h5py.File(self.root, 'r') as f:
-            video_list = f[list(f.keys())[0]]
-            video_keys = list(video_list.keys())
-            vid = video_list[video_keys[index]]
-            frame_idx = random.randint(1, len(list(vid.keys())))
+            frame_jpeg_array = np.array(f['train_frames_12fps_128_center_cropped'][vid_name]['%06d.jpg' % frame_idx])
+        frame = self.transforms(Image.open(io.BytesIO(frame_jpeg_array)))
+        
+        label_idx = self.label_map[label_name]
+        return frame, label_idx
 
-            frame = np.array(vid['%06d.jpg' % frame_idx])
-            label = torch.tensor(list(set(self.kinetics_hash.values())).index(self.kinetics_hash[video_keys[index]]))
-            frame = self.transforms(Image.open(io.BytesIO(frame)))
-        return frame, label
 
