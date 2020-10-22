@@ -172,13 +172,16 @@ def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
   # If improved over previous best metric, save approrpiate copy
   if ((config['which_best'] == 'IS' and IS_mean > state_dict['best_IS'])
     or (config['which_best'] == 'FID' and FID < state_dict['best_FID'])):
+    
+    state_dict['best_IS'] = max(state_dict['best_IS'], IS_mean)
+    state_dict['best_FID'] = min(state_dict['best_FID'], FID)
+    
     print('%s improved over previous best, saving checkpoint...' % config['which_best'])
     utils.save_weights(G, D, state_dict, config['weights_root'],
                        experiment_name, 'best%d' % state_dict['save_best_num'],
                        G_ema if config['ema'] else None)
     state_dict['save_best_num'] = (state_dict['save_best_num'] + 1 ) % config['num_best_copies']
-  state_dict['best_IS'] = max(state_dict['best_IS'], IS_mean)
-  state_dict['best_FID'] = min(state_dict['best_FID'], FID)
+
   # Log results to file
   test_log.log(itr=int(state_dict['itr']), IS_mean=float(IS_mean),
                IS_std=float(IS_std), FID=float(FID))
