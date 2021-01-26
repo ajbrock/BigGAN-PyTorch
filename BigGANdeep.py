@@ -314,7 +314,10 @@ class DBlock(nn.Module):
     
   def forward(self, x):
     # 1x1 bottleneck conv
-    h = self.conv1(F.relu(x))
+    h = x
+    if self.preactivation:
+      h = F.relu(h)
+    h = self.conv1(h)
     # 3x3 convs
     h = self.conv2(self.activation(h))
     h = self.conv3(self.activation(h))
@@ -420,7 +423,7 @@ class Discriminator(nn.Module):
                        which_conv=self.which_conv,
                        wide=self.D_wide,
                        activation=self.activation,
-                       preactivation=True,
+                       preactivation=index > 0 or d_index > 0,
                        downsample=(nn.AvgPool2d(2) if self.arch['downsample'][index] and d_index==0 else None))
                        for d_index in range(self.D_depth)]]
       # If attention on this block, attach it to the end
