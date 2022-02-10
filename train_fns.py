@@ -17,6 +17,29 @@ def dummy_training_function():
   return train
 
 
+def VCA_generator_training_function(G, VCA, z_, y_, config):
+
+  def train(x, y):
+    G.optim.zero_grad()
+
+    for accumulation_index in range(config['num_G_accumulations']):
+      z_.sample_()
+      y_.sample_()
+
+      G_z = G(z_[:config['batch_size']], G.shared(y_[:config['batch_size']]))
+      VCA_G_z = VCA(G_z).view(-1)
+      #TODO: Should this loss be reversed?....
+      G_loss = losses.generator_loss(VCA_G_z) / float(config['num_G_accumulations'])
+      G_loss.backward()
+
+    G.optim.step()
+
+    out = {'G_loss': float(G_loss.item())}
+
+    return out
+  return train
+
+
 def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
   def train(x, y):
     G.optim.zero_grad()

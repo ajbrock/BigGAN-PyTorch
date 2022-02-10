@@ -209,7 +209,8 @@ def prepare_parser():
   parser.add_argument(
     '--num_standing_accumulations', type=int, default=16,
     help='Number of forward passes to use in accumulating standing stats? '
-         '(default: %(default)s)')        
+         '(default: %(default)s)')
+  
     
   ### Bookkeping stuff ###  
   parser.add_argument(
@@ -338,6 +339,14 @@ def prepare_parser():
   parser.add_argument(
     '--resume', action='store_true', default=False,
     help='Resume training? (default: %(default)s)')
+  parser.add_argument(
+    '--vca_filepath', type=str, default='',
+    help='Relative filepath to trained VCA model .pth (default: %(default)s)'
+  )
+  parser.add_argument(
+    '--iters_per_epoch', type=int, default=100,
+    help='Batch iterations per epoch used in VCA Generator Training (default: %(default)s)'
+  )
   
   ### Log stuff ###
   parser.add_argument(
@@ -697,10 +706,12 @@ def save_weights(G, D, state_dict, weights_root, experiment_name,
               '%s/%s.pth' % (root, join_strings('_', ['G', name_suffix])))
   torch.save(G.optim.state_dict(), 
               '%s/%s.pth' % (root, join_strings('_', ['G_optim', name_suffix])))
-  torch.save(D.state_dict(), 
-              '%s/%s.pth' % (root, join_strings('_', ['D', name_suffix])))
-  torch.save(D.optim.state_dict(),
-              '%s/%s.pth' % (root, join_strings('_', ['D_optim', name_suffix])))
+  
+  if (D is not None):
+    torch.save(D.state_dict(), 
+                '%s/%s.pth' % (root, join_strings('_', ['D', name_suffix])))
+    torch.save(D.optim.state_dict(),
+                '%s/%s.pth' % (root, join_strings('_', ['D_optim', name_suffix])))
   torch.save(state_dict,
               '%s/%s.pth' % (root, join_strings('_', ['state_dict', name_suffix])))
   if G_ema is not None:
