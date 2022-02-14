@@ -7,27 +7,18 @@
     Let's go.
 """
 
-import os
-import functools
-import math
-import numpy as np
-from tqdm import tqdm, trange
 
 
 import torch
 import torch.nn as nn
-from torch.nn import init
-import torch.optim as optim
 import torch.nn.functional as F
 from torch.nn import Parameter as P
-import torchvision
 
 # Import my stuff
 import inception_utils
 from models.Amy_IntermediateRoad import Amy_IntermediateRoad
 from simple_utils import load_checkpoint
 import utils
-import losses
 import train_fns
 from sync_batchnorm import patch_replication_callback
 
@@ -101,7 +92,7 @@ def run(config):
   # If loading from a pre-trained model, load weights
   if config['resume']:
     print('Loading weights...')
-    utils.load_weights(G,D, state_dict, 'pretrained', '138k')
+    utils.load_weights(G,D, state_dict, './pretrained', '138k')
 
   # If parallel, parallelize the GD module
   if config['parallel']:
@@ -123,18 +114,9 @@ def run(config):
                              logstyle=config['logstyle'])
   # Write metadata
   utils.write_metadata(config['logs_root'], experiment_name, config, state_dict)
-  # Prepare data; the Discriminator's batch size is all that needs to be passed
-  # to the dataloader, as G doesn't require dataloading.
-  # Note that at every loader iteration we pass in enough data to complete
-  # a full D iteration (regardless of number of D steps and accumulations)
-  D_batch_size = (config['batch_size'] * config['num_D_steps']
-                  * config['num_D_accumulations'])
-  loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size,
-                                      'start_itr': state_dict['itr']})
+
 
   # Prepare inception metrics: FID and IS
-  get_inception_metrics = inception_utils.prepare_inception_metrics(config['dataset'], config['parallel'], config['no_fid'])
-
   # Prepare noise and randomly sampled label arrays
   # Allow for different batch sizes in G
   G_batch_size = max(config['G_batch_size'], config['batch_size'])
@@ -146,80 +128,9 @@ def run(config):
                                        fp16=config['G_fp16'])  
   fixed_z.sample_()
   fixed_y.sample_()
-  # Loaders are loaded, prepare the training function
-  if config['which_train_fn'] == 'GAN':
-    train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
-                                            ema, state_dict, config)
-  elif config['which_train_fn'] == 'VCA_G':
-    VCA = Amy_IntermediateRoad( lowfea_VGGlayer=10, highfea_VGGlayer=36, is_highroad_only=False, is_gist=False)
-    VCA = load_checkpoint(VCA, config['vca_filepath'])
-    VCA = VCA.to(device)
 
-    train = train_fns.VCA_generator_training_function(G, VCA, z_, y_, config)
-  # Else, assume debugging and use the dummy train fn
-  else:
-    train = train_fns.dummy_training_function()
-  # Prepare Sample function for use with inception metrics
-  sample = functools.partial(utils.sample,
-                              G=(G_ema if config['ema'] and config['use_ema']
-                                 else G),
-                              z_=z_, y_=y_, config=config)
 
-  print('Beginning training at epoch %d...' % state_dict['epoch'])
-  # Train for specified number of epochs, although we mostly track G iterations.
-  for epoch in range(state_dict['epoch'], config['num_epochs']):    
-    # Which progressbar to use? TQDM or my own?
-    if config['pbar'] == 'mine':
-      pbar = utils.progress(loaders[0],displaytype='s1k' if config['use_multiepoch_sampler'] else 'eta')
-    else:
-      pbar = tqdm(loaders[0])
-    for i, (x, y) in enumerate(pbar):
-      # Increment the iteration counter
-      state_dict['itr'] += 1
-      # Make sure G and D are in training mode, just in case they got set to eval
-      # For D, which typically doesn't have BN, this shouldn't matter much.
-      G.train()
-      D.train()
-      if config['ema']:
-        G_ema.train()
-      if config['D_fp16']:
-        x, y = x.to(device).half(), y.to(device)
-      else:
-        x, y = x.to(device), y.to(device)
-      metrics = train(x, y)
-      train_log.log(itr=int(state_dict['itr']), **metrics)
-      
-      # Every sv_log_interval, log singular values
-      if (config['sv_log_interval'] > 0) and (not (state_dict['itr'] % config['sv_log_interval'])):
-        train_log.log(itr=int(state_dict['itr']), 
-                      **{**utils.get_SVs(G, 'G'), **utils.get_SVs(D, 'D')})
-
-      # If using my progbar, print metrics.
-      if config['pbar'] == 'mine':
-          print(', '.join(['itr: %d' % state_dict['itr']] 
-                           + ['%s : %+4.3f' % (key, metrics[key])
-                           for key in metrics]), end=' ')
-
-      # Save weights and copies as configured at specified interval
-      if not (state_dict['itr'] % config['save_every']):
-        if config['G_eval_mode']:
-          print('Switchin G to eval mode...')
-          G.eval()
-          if config['ema']:
-            G_ema.eval()
-        train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y, 
-                                  state_dict, config, experiment_name)
-
-      # Test every specified interval
-      if not (state_dict['itr'] % config['test_every']):
-        if config['G_eval_mode']:
-          print('Switchin G to eval mode...')
-          G.eval()
-        train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
-                       get_inception_metrics, experiment_name, test_log)
-    # Increment epoch counter at end of epoch
-    state_dict['epoch'] += 1
-
+  train_fns.save_and_sample(G, None, G_ema, z_, y_, fixed_z, fixed_y, state_dict, config, experiment_name)
 
 def main():
   # parse command line and run
