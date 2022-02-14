@@ -36,7 +36,8 @@ def VCA_generator_training_function(G, VCA, z_, y_, config):
 
       VCA_G_z = VCA(G_z).view(-1)
       #TODO: Should this loss be reversed?....
-      G_loss = losses.generator_loss(VCA_G_z) / float(config['num_G_accumulations'])
+
+      G_loss = losses.loss_gen_vca(VCA_G_z, 1) / float(config['num_G_accumulations'])
       G_loss.backward()
 
     G.optim.step()
