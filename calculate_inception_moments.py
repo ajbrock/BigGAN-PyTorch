@@ -59,11 +59,12 @@ def run(config):
     x = x.to(device)
     with torch.no_grad():
       pool_val, logits_val = net(x)
-      pool += [np.asarray(pool_val.cpu())]
+      # pool += [np.asarray(pool_val.cpu())]
       logits += [np.asarray(F.softmax(logits_val, 1).cpu())]
-      labels += [np.asarray(y.cpu())]
+      # labels += [np.asarray(y.cpu())]
 
-  pool, logits, labels = [np.concatenate(item, 0) for item in [pool, logits, labels]]
+  # pool, logits, labels = [np.concatenate(item, 0) for item in [pool, logits, labels]]
+  logits = np.concatenate(logits, 0)
   # uncomment to save pool, logits, and labels to disk
   # print('Saving pool, logits, and labels to disk...')
   # np.savez(config['dataset']+'_inception_activations.npz',
